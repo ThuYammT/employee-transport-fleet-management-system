@@ -18,14 +18,172 @@ enum UserStatus {
   INACTIVE
 }
 
+enum VehicleStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  INACTIVE
+}
+
+enum DriverAvailabilityStatus {
+  AVAILABLE
+  ON_TRIP
+  OFF_DUTY
+  INACTIVE
+}
+
+enum TransportRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+enum TripStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+enum MaintenanceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+enum VehicleIssueStatus {
+  REPORTED
+  IN_PROGRESS
+  RESOLVED
+}
 model User {
-  id           Int        @id @default(autoincrement())
-  name         String
-  email        String     @unique
-  passwordHash String
-  role         UserRole
-  phone        String?
-  status       UserStatus @default(ACTIVE)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id            Int        @id @default(autoincrement())
+  name          String
+  email         String     @unique
+  passwordHash  String
+  role          UserRole
+  phone         String?
+  status        UserStatus @default(ACTIVE)
+
+  driverProfile Driver?
+  transportRequests TransportRequest[]
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model Vehicle {
+  id              Int           @id @default(autoincrement())
+  plateNumber     String        @unique
+  vehicleType     String
+  capacity        Int
+  status          VehicleStatus @default(AVAILABLE)
+  currentMileage  Int           @default(0)
+
+  assignedDrivers Driver[]
+  trips Trip[]
+
+  issueReports VehicleIssueReport[]
+
+  fuelLogs FuelLog[]
+
+  maintenanceLogs MaintenanceLog[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Driver {
+  id                 Int                      @id @default(autoincrement())
+  userId             Int                      @unique
+  licenseNumber      String                   @unique
+  availabilityStatus DriverAvailabilityStatus @default(AVAILABLE)
+  assignedVehicleId  Int?
+
+  user               User                     @relation(fields: [userId], references: [id])
+  assignedVehicle    Vehicle?                 @relation(fields: [assignedVehicleId], references: [id])
+  trips Trip[]
+  fuelLogs FuelLog[]
+
+  issueReports VehicleIssueReport[]
+
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+}
+
+model TransportRequest {
+  id             Int                    @id @default(autoincrement())
+  employeeId     Int
+  pickupLocation String
+  destination    String
+  requestDate    DateTime
+  requestTime    String
+  purpose        String
+  status         TransportRequestStatus @default(PENDING)
+
+  employee       User                   @relation(fields: [employeeId], references: [id])
+  trip Trip?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+}
+
+model Trip {
+  id        Int        @id @default(autoincrement())
+  requestId Int       @unique
+  driverId  Int
+  vehicleId Int
+  startTime DateTime?
+  endTime   DateTime?
+  status    TripStatus @default(SCHEDULED)
+
+  request   TransportRequest @relation(fields: [requestId], references: [id])
+  driver    Driver           @relation(fields: [driverId], references: [id])
+  vehicle   Vehicle          @relation(fields: [vehicleId], references: [id])
+  fuelLogs FuelLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FuelLog {
+  id          Int      @id @default(autoincrement())
+  vehicleId   Int
+  driverId    Int
+  tripId      Int?
+  fuelDate    DateTime
+  liters      Float
+  cost        Float
+  mileage     Int
+  fuelStation String?
+
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
+  driver      Driver   @relation(fields: [driverId], references: [id])
+  trip        Trip?    @relation(fields: [tripId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+model MaintenanceLog {
+  id              Int               @id @default(autoincrement())
+  vehicleId       Int
+  serviceDate     DateTime
+  description     String
+  cost            Float
+  nextServiceDate DateTime?
+  status          MaintenanceStatus @default(PENDING)
+
+  vehicle         Vehicle           @relation(fields: [vehicleId], references: [id])
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+model VehicleIssueReport {
+  id          Int                @id @default(autoincrement())
+  vehicleId   Int
+  driverId    Int
+  issueTitle  String
+  description String
+  status      VehicleIssueStatus @default(REPORTED)
+  reportedAt  DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  vehicle     Vehicle            @relation(fields: [vehicleId], references: [id])
+  driver      Driver             @relation(fields: [driverId], references: [id])
 }
