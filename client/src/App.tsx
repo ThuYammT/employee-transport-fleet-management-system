@@ -1,42 +1,36 @@
 import { useState } from 'react'
-import './App.css'
 
-import DashboardView from './components/DashboardView'
-import VehiclesView from './components/VehiclesView'
-import DriversView from './components/DriversView'
-import FuelLogsView from './components/FuelLogsView'
-import MaintenanceView from './components/MaintenanceView'
-import UsersView from './components/UsersView'
+import DashboardLayout from './layouts/DashboardLayout'
+import DashboardHome from './pages/DashboardHome'
+import VehiclesView from './pages/VehiclesView'
+import DriversView from './pages/DriversView'
+import FuelLogsView from './pages/FuelLogsView'
+import MaintenanceView from './pages/MaintenanceView'
+import UsersView from './pages/UsersView'
 
-type Page = 'dashboard' | 'vehicles' | 'drivers' | 'fuelLogs' | 'maintenance' | 'users'
+export type Page =
+  | 'dashboard'
+  | 'vehicles'
+  | 'drivers'
+  | 'fuel'
+  | 'maintenance'
+  | 'users'
 
 function App() {
-  const [activePage, setActivePage] = useState<Page>('dashboard')
+  const [currentPage, setCurrentPage] = useState<Page>('dashboard')
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <h2>FleetMS</h2>
-
-        <nav>
-          <button className={activePage === 'dashboard' ? 'active' : ''} onClick={() => setActivePage('dashboard')}>Dashboard</button>
-          <button className={activePage === 'vehicles' ? 'active' : ''} onClick={() => setActivePage('vehicles')}>Vehicles</button>
-          <button className={activePage === 'drivers' ? 'active' : ''} onClick={() => setActivePage('drivers')}>Drivers</button>
-          <button className={activePage === 'fuelLogs' ? 'active' : ''} onClick={() => setActivePage('fuelLogs')}>Fuel Logs</button>
-          <button className={activePage === 'maintenance' ? 'active' : ''} onClick={() => setActivePage('maintenance')}>Maintenance</button>
-          <button className={activePage === 'users' ? 'active' : ''} onClick={() => setActivePage('users')}>Users</button>
-        </nav>
-      </aside>
-
-      <main className="main">
-        {activePage === 'dashboard' && <DashboardView />}
-        {activePage === 'vehicles' && <VehiclesView />}
-        {activePage === 'drivers' && <DriversView />}
-        {activePage === 'fuelLogs' && <FuelLogsView />}
-        {activePage === 'maintenance' && <MaintenanceView />}
-        {activePage === 'users' && <UsersView />}
-      </main>
-    </div>
+    <DashboardLayout
+      currentPage={currentPage}
+      setCurrentPage={setCurrentPage}
+    >
+      {currentPage === 'dashboard' && <DashboardHome />}
+      {currentPage === 'vehicles' && <VehiclesView />}
+      {currentPage === 'drivers' && <DriversView />}
+      {currentPage === 'fuel' && <FuelLogsView />}
+      {currentPage === 'maintenance' && <MaintenanceView />}
+      {currentPage === 'users' && <UsersView />}
+    </DashboardLayout>
   )
 }
 
