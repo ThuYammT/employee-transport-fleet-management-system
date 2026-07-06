@@ -1,12 +1,12 @@
 import { useState } from 'react'
 
 import DashboardLayout from './layouts/DashboardLayout'
-import DashboardHome from './pages/DashboardHome'
-import VehiclesView from './pages/VehiclesView'
-import DriversView from './pages/DriversView'
-import FuelLogsView from './pages/FuelLogsView'
-import MaintenanceView from './pages/MaintenanceView'
-import UsersView from './pages/UsersView'
+import DashboardHome from './pages/admin/DashboardHome'
+import VehiclesView from './pages/admin/VehiclesView'
+import DriversView from './pages/admin/DriversView'
+import FuelLogsView from './pages/admin/FuelLogsView'
+import MaintenanceView from './pages/admin/MaintenanceView'
+import UsersView from './pages/admin/UsersView'
 
 export type Page =
   | 'dashboard'
