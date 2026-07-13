@@ -1,3 +1,5 @@
+import type { Vehicle } from './vehicle'
+
 export type MaintenanceStatus =
   | 'PENDING'
   | 'IN_PROGRESS'
@@ -11,6 +13,7 @@ export type MaintenanceLog = {
   cost: number
   nextServiceDate?: string | null
   status: MaintenanceStatus
+  vehicle?: Vehicle
   createdAt: string
   updatedAt: string
 }

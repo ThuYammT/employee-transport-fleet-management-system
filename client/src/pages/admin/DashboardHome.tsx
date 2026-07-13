@@ -38,32 +38,25 @@ function DashboardHome() {
         <div>
           <h2 className="text-xl font-bold">Overview</h2>
           <p className="text-sm text-slate-500">
-            Welcome back, Super Administrator
+            Welcome back, Super Admin.
           </p>
         </div>
 
-        <input
-          className="bg-slate-100 border border-slate-200 rounded-full px-5 py-3 text-sm outline-none"
-          placeholder="Search Bar"
-        />
       </header>
 
       <section className="p-8">
         <div className="bg-slate-950 text-white rounded-2xl p-8 flex justify-between items-center mb-8 shadow">
           <div>
             <h1 className="text-5xl font-bold mb-4">
-              Fleet Operations Command
+              Fleet Operations Management
             </h1>
 
             <p className="text-slate-400 max-w-xl">
-              Real-time administrative control over vehicle statuses,
-              driver availability, fuel allocation, and maintenance schedules.
+              Administrative control over vehicle statuses,
+              drivers, fuel records, and maintenance records.
             </p>
           </div>
-
-          <button className="bg-white text-slate-950 px-8 py-4 rounded-xl font-semibold">
-            Manage Fleet →
-          </button>
+        
         </div>
 
         {loading && <p className="text-slate-500">Loading dashboard data...</p>}

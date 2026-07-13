@@ -1,3 +1,6 @@
+import type { Driver } from './driver'
+import type { Vehicle } from './vehicle'
+
 export type FuelLog = {
   id: number
   vehicleId: number
@@ -8,6 +11,8 @@ export type FuelLog = {
   cost: number
   mileage: number
   fuelStation?: string | null
+  vehicle?: Vehicle
+  driver?: Driver
   createdAt: string
   updatedAt: string
 }
