@@ -12,6 +12,13 @@ export async function getTransportRequests(): Promise<
   return response.data
 }
 
+export async function getTransportRequestById(
+  id: number,
+): Promise<TransportRequest> {
+  const response = await api.get(`/transport-requests/${id}`)
+  return response.data
+}
+
 export async function createTransportRequest(
   data: CreateTransportRequestData,
 ): Promise<TransportRequest> {
@@ -27,6 +34,7 @@ export async function updateTransportRequest(
     `/transport-requests/${id}`,
     data,
   )
+
   return response.data
 }
 

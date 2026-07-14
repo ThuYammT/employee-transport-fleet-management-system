@@ -1,12 +1,34 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const menuItems = [
-  { label: 'Overview', path: '/admin' },
-  { label: 'Vehicles', path: '/admin/vehicles' },
-  { label: 'Drivers', path: '/admin/drivers' },
-  { label: 'Fuel Logs', path: '/admin/fuel-logs' },
-  { label: 'Maintenance Section', path: '/admin/maintenance' },
-  { label: 'Access Controls', path: '/admin/users' },
+  {
+    label: 'Overview',
+    path: '/admin',
+  },
+  {
+    label: 'Vehicles',
+    path: '/admin/vehicles',
+  },
+  {
+    label: 'Drivers',
+    path: '/admin/drivers',
+  },
+  {
+    label: 'Transport Requests',
+    path: '/admin/transport-requests',
+  },
+  {
+    label: 'Fuel Logs',
+    path: '/admin/fuel-logs',
+  },
+  {
+    label: 'Maintenance Section',
+    path: '/admin/maintenance',
+  },
+  {
+    label: 'Access Controls',
+    path: '/admin/users',
+  },
 ]
 
 function DashboardLayout() {
