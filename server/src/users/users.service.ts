@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
+import { Prisma } from '@prisma/client'
+import * as bcrypt from 'bcrypt'
+
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
@@ -19,6 +26,9 @@ export class UsersService {
         createdAt: true,
         updatedAt: true,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
     })
   }
 
@@ -38,58 +48,116 @@ export class UsersService {
     })
 
     if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`)
+      throw new NotFoundException(
+        `User with ID ${id} not found`,
+      )
     }
 
     return user
   }
 
-  create(createUserDto: CreateUserDto) {
-    return this.prisma.user.create({
-        data: {
-        name: createUserDto.name,
-        email: createUserDto.email,
-        passwordHash: createUserDto.password,
-        role: createUserDto.role,
-        phone: createUserDto.phone,
-        },
-        select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        phone: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        },
+  async create(createUserDto: CreateUserDto) {
+    const normalizedEmail = createUserDto.email
+      .trim()
+      .toLowerCase()
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: {
+        email: normalizedEmail,
+      },
     })
+
+    if (existingUser) {
+      throw new ConflictException(
+        'A user with this email already exists',
+      )
     }
 
-  async update(id: number, updateUserDto: UpdateUserDto) {
+    const passwordHash = await bcrypt.hash(
+      createUserDto.password,
+      12,
+    )
+
+    try {
+      return await this.prisma.user.create({
+        data: {
+          name: createUserDto.name.trim(),
+          email: normalizedEmail,
+          passwordHash,
+          role: createUserDto.role,
+          phone: createUserDto.phone?.trim() || null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
+    } catch (error) {
+      this.handleDuplicateEmailError(error)
+      throw error
+    }
+  }
+
+  async update(
+    id: number,
+    updateUserDto: UpdateUserDto,
+  ) {
     await this.findOne(id)
 
-    return this.prisma.user.update({
-        where: { id },
-        data: {
-        name: updateUserDto.name,
-        email: updateUserDto.email,
-        passwordHash: updateUserDto.password,
-        role: updateUserDto.role,
-        phone: updateUserDto.phone,
-        },
-        select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        phone: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        },
-    })
+    const updateData: Prisma.UserUpdateInput = {}
+
+    if (updateUserDto.name !== undefined) {
+      updateData.name = updateUserDto.name.trim()
     }
+
+    if (updateUserDto.email !== undefined) {
+      updateData.email = updateUserDto.email
+        .trim()
+        .toLowerCase()
+    }
+
+    if (updateUserDto.role !== undefined) {
+      updateData.role = updateUserDto.role
+    }
+
+    if (updateUserDto.phone !== undefined) {
+      updateData.phone =
+        updateUserDto.phone.trim() || null
+    }
+
+    if (updateUserDto.password !== undefined) {
+      updateData.passwordHash = await bcrypt.hash(
+        updateUserDto.password,
+        12,
+      )
+    }
+
+    try {
+      return await this.prisma.user.update({
+        where: { id },
+        data: updateData,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
+    } catch (error) {
+      this.handleDuplicateEmailError(error)
+      throw error
+    }
+  }
 
   async remove(id: number) {
     await this.findOne(id)
@@ -107,5 +175,19 @@ export class UsersService {
         updatedAt: true,
       },
     })
+  }
+
+  private handleDuplicateEmailError(
+    error: unknown,
+  ): void {
+    if (
+      error instanceof
+        Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictException(
+        'A user with this email already exists',
+      )
+    }
   }
 }
