@@ -169,78 +169,65 @@ export class AuthService {
       .trim()
       .toLowerCase()
 
+    const existingAdmin =
+      await this.prisma.user.findFirst({
+        where: {
+          role: UserRole.ADMIN,
+        },
+        select: {
+          id: true,
+        },
+      })
+
+    if (existingAdmin) {
+      throw new ConflictException(
+        'Initial admin setup has already been completed',
+      )
+    }
+
+    const existingEmail =
+      await this.prisma.user.findUnique({
+        where: {
+          email: normalizedEmail,
+        },
+        select: {
+          id: true,
+        },
+      })
+
+    if (existingEmail) {
+      throw new ConflictException(
+        'An account with this email already exists',
+      )
+    }
+
     const passwordHash = await bcrypt.hash(
       setupAdminDto.password,
       12,
     )
 
     try {
-      const admin = await this.prisma.$transaction(
-        async (transaction) => {
-          /*
-           * PostgreSQL advisory lock:
-           * only one first-admin setup transaction can run
-           * at a time.
-           */
-          await transaction.$queryRaw`
-            SELECT pg_advisory_xact_lock(846275193)
-          `
-
-          const existingAdmin =
-            await transaction.user.findFirst({
-              where: {
-                role: UserRole.ADMIN,
-              },
-              select: {
-                id: true,
-              },
-            })
-
-          if (existingAdmin) {
-            throw new ConflictException(
-              'Initial admin setup has already been completed',
-            )
-          }
-
-          const existingEmail =
-            await transaction.user.findUnique({
-              where: {
-                email: normalizedEmail,
-              },
-              select: {
-                id: true,
-              },
-            })
-
-          if (existingEmail) {
-            throw new ConflictException(
-              'An account with this email already exists',
-            )
-          }
-
-          return transaction.user.create({
-            data: {
-              name: setupAdminDto.name.trim(),
-              email: normalizedEmail,
-              passwordHash,
-              phone:
-                setupAdminDto.phone?.trim() || null,
-              role: UserRole.ADMIN,
-              status: UserStatus.ACTIVE,
-            },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-              phone: true,
-              status: true,
-              createdAt: true,
-              updatedAt: true,
-            },
-          })
+      const admin = await this.prisma.user.create({
+        data: {
+          name: setupAdminDto.name.trim(),
+          email: normalizedEmail,
+          passwordHash,
+          phone:
+            setupAdminDto.phone?.trim() || null,
+          role: UserRole.ADMIN,
+          status: UserStatus.ACTIVE,
         },
-      )
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
 
       return {
         ...admin,
@@ -252,7 +239,6 @@ export class AuthService {
       throw error
     }
   }
-
   private setupKeysMatch(
     submittedKey: string,
     configuredKey: string,
