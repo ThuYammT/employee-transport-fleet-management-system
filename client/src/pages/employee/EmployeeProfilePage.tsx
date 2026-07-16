@@ -4,23 +4,33 @@ import { useNavigate } from 'react-router-dom'
 import { getUserById } from '../../services/user.service'
 import type { User } from '../../types/user'
 import {
-  clearEmployeeId,
-  getEmployeeId,
-} from '../../utils/employee-session'
+  clearCurrentUser,
+  getCurrentUser,
+  saveCurrentUser,
+} from '../../utils/user-session'
 
 function EmployeeProfilePage() {
   const navigate = useNavigate()
 
-  const [employee, setEmployee] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [employee, setEmployee] =
+    useState<User | null>(null)
+
+  const [loading, setLoading] =
+    useState(true)
+
   const [error, setError] = useState('')
 
   useEffect(() => {
     async function fetchEmployeeProfile() {
-      const employeeId = getEmployeeId()
+      const currentUser = getCurrentUser()
 
-      if (!employeeId) {
-        navigate('/employee/setup', { replace: true })
+      if (
+        !currentUser ||
+        currentUser.role !== 'EMPLOYEE'
+      ) {
+        navigate('/login', {
+          replace: true,
+        })
         return
       }
 
@@ -28,18 +38,35 @@ function EmployeeProfilePage() {
         setLoading(true)
         setError('')
 
-        const employeeData = await getUserById(employeeId)
+        const employeeData = await getUserById(
+          currentUser.id,
+        )
 
-        if (employeeData.role !== 'EMPLOYEE') {
-          clearEmployeeId()
-          navigate('/employee/setup', { replace: true })
+        if (
+          employeeData.role !== 'EMPLOYEE' ||
+          employeeData.status !== 'ACTIVE'
+        ) {
+          clearCurrentUser()
+
+          navigate('/login', {
+            replace: true,
+          })
+
           return
         }
 
         setEmployee(employeeData)
+
+        saveCurrentUser({
+          ...currentUser,
+          ...employeeData,
+        })
       } catch (error) {
         console.error(error)
-        setError('Failed to load employee profile.')
+
+        setError(
+          'Failed to load employee profile.',
+        )
       } finally {
         setLoading(false)
       }
@@ -48,17 +75,20 @@ function EmployeeProfilePage() {
     void fetchEmployeeProfile()
   }, [navigate])
 
-  function handleResetEmployee() {
+  function handleLogout() {
     const confirmed = window.confirm(
-      'Do you want to remove this test employee from the current browser?',
+      'Do you want to sign out of your account?',
     )
 
     if (!confirmed) {
       return
     }
 
-    clearEmployeeId()
-    navigate('/employee/setup', { replace: true })
+    clearCurrentUser()
+
+    navigate('/login', {
+      replace: true,
+    })
   }
 
   return (
@@ -70,16 +100,16 @@ function EmployeeProfilePage() {
           </h1>
 
           <p className="text-sm text-slate-500">
-            View your employee account information.
+            View your account information.
           </p>
         </div>
 
         <button
           type="button"
-          onClick={handleResetEmployee}
+          onClick={handleLogout}
           className="rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
         >
-          Reset Test Employee
+          Sign out
         </button>
       </header>
 
@@ -152,7 +182,10 @@ function EmployeeProfilePage() {
 
               <ProfileField
                 label="Phone Number"
-                value={employee.phone || 'Not provided'}
+                value={
+                  employee.phone ||
+                  'Not provided'
+                }
               />
 
               <ProfileField
@@ -167,25 +200,29 @@ function EmployeeProfilePage() {
 
               <ProfileField
                 label="Created At"
-                value={formatDateTime(employee.createdAt)}
+                value={formatDateTime(
+                  employee.createdAt,
+                )}
               />
 
               <ProfileField
                 label="Last Updated"
-                value={formatDateTime(employee.updatedAt)}
+                value={formatDateTime(
+                  employee.updatedAt,
+                )}
               />
             </div>
 
             <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 p-5">
               <p className="font-semibold text-blue-900">
-                Development employee session
+                Signed-in account
               </p>
 
               <p className="mt-1 text-sm leading-6 text-blue-700">
-                This profile is loaded from your deployed backend using
-                the employee ID stored in this browser. JWT
-                authentication will replace this temporary session
-                later.
+                Your account was loaded from the
+                deployed backend. A local session is
+                currently used until JWT authentication
+                is added.
               </p>
             </div>
           </div>
@@ -221,7 +258,9 @@ function getInitials(name: string) {
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
+    .map((part) =>
+      part.charAt(0).toUpperCase(),
+    )
     .join('')
 
   return initials || 'EM'

@@ -1,15 +1,21 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
-import { Prisma, UserRole, UserStatus } from '@prisma/client'
+import {
+  Prisma,
+  UserRole,
+  UserStatus,
+} from '@prisma/client'
 import * as bcrypt from 'bcrypt'
+import { timingSafeEqual } from 'crypto'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { LoginDto } from './dto/login.dto'
 import { RegisterDto } from './dto/register.dto'
+import { SetupAdminDto } from './dto/setup-admin.dto'
 
 @Injectable()
 export class AuthService {
@@ -44,6 +50,8 @@ export class AuthService {
           email: normalizedEmail,
           passwordHash,
           phone: registerDto.phone?.trim() || null,
+
+          // Public registration remains employee-only.
           role: UserRole.EMPLOYEE,
           status: UserStatus.ACTIVE,
         },
@@ -59,16 +67,7 @@ export class AuthService {
         },
       })
     } catch (error) {
-      if (
-        error instanceof
-          Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'An account with this email already exists',
-        )
-      }
-
+      this.handleDuplicateEmailError(error)
       throw error
     }
   }
@@ -107,12 +106,6 @@ export class AuthService {
       )
     }
 
-    if (!user.name.trim()) {
-      throw new BadRequestException(
-        'This account has incomplete profile information',
-      )
-    }
-
     return {
       id: user.id,
       name: user.name,
@@ -122,6 +115,182 @@ export class AuthService {
       status: user.status,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+    }
+  }
+
+  async getSetupStatus() {
+    const existingAdmin = await this.prisma.user.findFirst({
+      where: {
+        role: UserRole.ADMIN,
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    const configuredSetupKey =
+      process.env.INITIAL_ADMIN_SETUP_KEY
+
+    return {
+      adminSetupRequired: !existingAdmin,
+      setupConfigured:
+        typeof configuredSetupKey === 'string' &&
+        configuredSetupKey.length >= 16,
+    }
+  }
+
+  async setupFirstAdmin(
+    setupAdminDto: SetupAdminDto,
+  ) {
+    const configuredSetupKey =
+      process.env.INITIAL_ADMIN_SETUP_KEY
+
+    if (
+      !configuredSetupKey ||
+      configuredSetupKey.length < 16
+    ) {
+      throw new ServiceUnavailableException(
+        'Initial admin setup has not been configured on the server',
+      )
+    }
+
+    if (
+      !this.setupKeysMatch(
+        setupAdminDto.setupKey,
+        configuredSetupKey,
+      )
+    ) {
+      throw new UnauthorizedException(
+        'The admin setup key is invalid',
+      )
+    }
+
+    const normalizedEmail = setupAdminDto.email
+      .trim()
+      .toLowerCase()
+
+    const passwordHash = await bcrypt.hash(
+      setupAdminDto.password,
+      12,
+    )
+
+    try {
+      const admin = await this.prisma.$transaction(
+        async (transaction) => {
+          /*
+           * PostgreSQL advisory lock:
+           * only one first-admin setup transaction can run
+           * at a time.
+           */
+          await transaction.$queryRaw`
+            SELECT pg_advisory_xact_lock(846275193)
+          `
+
+          const existingAdmin =
+            await transaction.user.findFirst({
+              where: {
+                role: UserRole.ADMIN,
+              },
+              select: {
+                id: true,
+              },
+            })
+
+          if (existingAdmin) {
+            throw new ConflictException(
+              'Initial admin setup has already been completed',
+            )
+          }
+
+          const existingEmail =
+            await transaction.user.findUnique({
+              where: {
+                email: normalizedEmail,
+              },
+              select: {
+                id: true,
+              },
+            })
+
+          if (existingEmail) {
+            throw new ConflictException(
+              'An account with this email already exists',
+            )
+          }
+
+          return transaction.user.create({
+            data: {
+              name: setupAdminDto.name.trim(),
+              email: normalizedEmail,
+              passwordHash,
+              phone:
+                setupAdminDto.phone?.trim() || null,
+              role: UserRole.ADMIN,
+              status: UserStatus.ACTIVE,
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              phone: true,
+              status: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          })
+        },
+      )
+
+      return {
+        ...admin,
+        message:
+          'Initial administrator account created successfully',
+      }
+    } catch (error) {
+      this.handleDuplicateEmailError(error)
+      throw error
+    }
+  }
+
+  private setupKeysMatch(
+    submittedKey: string,
+    configuredKey: string,
+  ): boolean {
+    const submittedBuffer = Buffer.from(
+      submittedKey,
+      'utf8',
+    )
+
+    const configuredBuffer = Buffer.from(
+      configuredKey,
+      'utf8',
+    )
+
+    if (
+      submittedBuffer.length !==
+      configuredBuffer.length
+    ) {
+      return false
+    }
+
+    return timingSafeEqual(
+      submittedBuffer,
+      configuredBuffer,
+    )
+  }
+
+  private handleDuplicateEmailError(
+    error: unknown,
+  ): void {
+    if (
+      error instanceof
+        Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictException(
+        'An account with this email already exists',
+      )
     }
   }
 }

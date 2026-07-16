@@ -3,8 +3,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { createTransportRequest } from '../../services/transport-request.service'
-import { getEmployeeId } from '../../utils/employee-session'
-
+import { getCurrentUser } from '../../utils/user-session'
 type TransportRequestFormData = {
   pickupLocation: string
   destination: string
@@ -48,12 +47,17 @@ function NewTransportRequestPage() {
   ) {
     event.preventDefault()
 
-    const employeeId = getEmployeeId()
+    const currentUser = getCurrentUser()
 
-    if (!employeeId) {
-      navigate('/employee/setup', { replace: true })
+    if (
+      !currentUser ||
+      currentUser.role !== 'EMPLOYEE'
+    ) {
+      navigate('/login', { replace: true })
       return
     }
+
+    const employeeId = currentUser.id
 
     const pickupLocation = formData.pickupLocation.trim()
     const destination = formData.destination.trim()

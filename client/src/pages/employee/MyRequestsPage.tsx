@@ -12,7 +12,7 @@ import type {
   TransportRequestStatus,
 } from '../../types/transport-request'
 
-import { getEmployeeId } from '../../utils/employee-session'
+import { getCurrentUser } from '../../utils/user-session'
 
 type StatusFilter = 'ALL' | TransportRequestStatus
 
@@ -32,13 +32,17 @@ function MyRequestsPage() {
 
   useEffect(() => {
     async function loadRequests() {
-      const employeeId = getEmployeeId()
+      const currentUser = getCurrentUser()
 
-      if (!employeeId) {
-        navigate('/employee/setup', { replace: true })
+      if (
+        !currentUser ||
+        currentUser.role !== 'EMPLOYEE'
+      ) {
+        navigate('/login', { replace: true })
         return
       }
 
+      const employeeId = currentUser.id
       try {
         setLoading(true)
         setError('')
@@ -66,12 +70,17 @@ function MyRequestsPage() {
   }, [navigate])
 
   async function refreshRequests() {
-    const employeeId = getEmployeeId()
+    const currentUser = getCurrentUser()
 
-    if (!employeeId) {
-      navigate('/employee/setup', { replace: true })
+    if (
+      !currentUser ||
+      currentUser.role !== 'EMPLOYEE'
+    ) {
+      navigate('/login', { replace: true })
       return
     }
+
+    const employeeId = currentUser.id
 
     const data = await getTransportRequests()
 

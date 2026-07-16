@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { getTransportRequests } from '../../services/transport-request.service'
 import type { TransportRequest } from '../../types/transport-request'
-import { getEmployeeId } from '../../utils/employee-session'
+import { getCurrentUser } from '../../utils/user-session'
 
 function EmployeeDashboard() {
   const navigate = useNavigate()
@@ -14,12 +14,17 @@ function EmployeeDashboard() {
 
   useEffect(() => {
     async function fetchRequests() {
-      const employeeId = getEmployeeId()
+      const currentUser = getCurrentUser()
 
-      if (!employeeId) {
-        navigate('/employee/setup', { replace: true })
+      if (
+        !currentUser ||
+        currentUser.role !== 'EMPLOYEE'
+      ) {
+        navigate('/login', { replace: true })
         return
       }
+
+      const employeeId = currentUser.id
 
       try {
         setLoading(true)
