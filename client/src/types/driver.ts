@@ -9,30 +9,56 @@ export type DriverAvailabilityStatus =
 
 export type DriverUser = Pick<
   User,
-  'id' | 'name' | 'email' | 'role' | 'phone' | 'status'
+  | 'id'
+  | 'name'
+  | 'email'
+  | 'role'
+  | 'phone'
+  | 'status'
 >
 
 export type DriverVehicle = Pick<
   Vehicle,
-  'id' | 'plateNumber' | 'vehicleType' | 'capacity' | 'status' | 'currentMileage'
+  | 'id'
+  | 'plateNumber'
+  | 'vehicleType'
+  | 'capacity'
+  | 'status'
+  | 'currentMileage'
 >
 
 export type Driver = {
   id: number
   userId: number
   licenseNumber: string
-  availabilityStatus: DriverAvailabilityStatus
+
+  availabilityStatus:
+    DriverAvailabilityStatus
+
   assignedVehicleId?: number | null
-  user?: DriverUser
+
+  user: DriverUser
+
   assignedVehicle?: DriverVehicle | null
+
   createdAt: string
   updatedAt: string
 }
 
 export type CreateDriverData = {
-  userId: number
+  name: string
+  email: string
+  password: string
+  phone?: string
   licenseNumber: string
   assignedVehicleId?: number
 }
 
-export type UpdateDriverData = Partial<CreateDriverData>
+export type UpdateDriverData = {
+  name?: string
+  email?: string
+  password?: string
+  phone?: string
+  licenseNumber?: string
+  assignedVehicleId?: number | null
+}

@@ -1,19 +1,49 @@
 import api from '../api/axios'
+
 import type {
-  Driver,
   CreateDriverData,
+  Driver,
   UpdateDriverData,
 } from '../types/driver'
 
-export async function getDrivers(): Promise<Driver[]> {
-  const response = await api.get('/drivers')
+export async function getDrivers(): Promise<
+  Driver[]
+> {
+  const response = await api.get<Driver[]>(
+    '/drivers',
+  )
+
+  return response.data
+}
+
+export async function getDriverById(
+  id: number,
+): Promise<Driver> {
+  const response = await api.get<Driver>(
+    `/drivers/${id}`,
+  )
+
+  return response.data
+}
+
+export async function getDriverByUserId(
+  userId: number,
+): Promise<Driver> {
+  const response = await api.get<Driver>(
+    `/drivers/user/${userId}`,
+  )
+
   return response.data
 }
 
 export async function createDriver(
   data: CreateDriverData,
 ): Promise<Driver> {
-  const response = await api.post('/drivers', data)
+  const response = await api.post<Driver>(
+    '/drivers',
+    data,
+  )
+
   return response.data
 }
 
@@ -21,10 +51,20 @@ export async function updateDriver(
   id: number,
   data: UpdateDriverData,
 ): Promise<Driver> {
-  const response = await api.patch(`/drivers/${id}`, data)
+  const response = await api.patch<Driver>(
+    `/drivers/${id}`,
+    data,
+  )
+
   return response.data
 }
 
-export async function deleteDriver(id: number): Promise<void> {
-  await api.delete(`/drivers/${id}`)
+export async function deactivateDriver(
+  id: number,
+): Promise<Driver> {
+  const response = await api.delete<Driver>(
+    `/drivers/${id}`,
+  )
+
+  return response.data
 }

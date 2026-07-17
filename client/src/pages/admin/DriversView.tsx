@@ -1,394 +1,824 @@
-import { useEffect, useState } from 'react'
+import axios from 'axios'
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+
 import {
   createDriver,
-  deleteDriver,
+  deactivateDriver,
   getDrivers,
   updateDriver,
 } from '../../services/driver.service'
-import { getUsers } from '../../services/user.service'
+
 import { getVehicles } from '../../services/vehicle.service'
+
 import type {
   CreateDriverData,
   Driver,
   DriverAvailabilityStatus,
+  UpdateDriverData,
 } from '../../types/driver'
-import type { User } from '../../types/user'
+
 import type { Vehicle } from '../../types/vehicle'
 
-const emptyForm: CreateDriverData = {
-  userId: 0,
+type DriverFormData = {
+  name: string
+  email: string
+  phone: string
+  password: string
+  licenseNumber: string
+  assignedVehicleId: string
+}
+
+const emptyForm: DriverFormData = {
+  name: '',
+  email: '',
+  phone: '',
+  password: '',
   licenseNumber: '',
+  assignedVehicleId: '',
 }
 
 function DriversView() {
-  const [drivers, setDrivers] = useState<Driver[]>([])
-  const [users, setUsers] = useState<User[]>([])
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'All' | DriverAvailabilityStatus>(
-    'All',
-  )
-  const [formData, setFormData] = useState<CreateDriverData>(emptyForm)
-  const [editingDriverId, setEditingDriverId] = useState<number | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [drivers, setDrivers] = useState<
+    Driver[]
+  >([])
+
+  const [vehicles, setVehicles] = useState<
+    Vehicle[]
+  >([])
+
+  const [searchTerm, setSearchTerm] =
+    useState('')
+
+  const [statusFilter, setStatusFilter] =
+    useState<
+      'ALL' | DriverAvailabilityStatus
+    >('ALL')
+
+  const [formData, setFormData] =
+    useState<DriverFormData>(emptyForm)
+
+  const [
+    editingDriverId,
+    setEditingDriverId,
+  ] = useState<number | null>(null)
+
+  const [isModalOpen, setIsModalOpen] =
+    useState(false)
+
+  const [loading, setLoading] =
+    useState(true)
+
+  const [saving, setSaving] =
+    useState(false)
+
+  const [
+    deactivatingDriverId,
+    setDeactivatingDriverId,
+  ] = useState<number | null>(null)
+
   const [error, setError] = useState('')
+  const [modalError, setModalError] =
+    useState('')
 
   useEffect(() => {
-    fetchData()
+    void fetchData()
   }, [])
 
   async function fetchData() {
     try {
       setLoading(true)
       setError('')
-      const [driversData, usersData, vehiclesData] = await Promise.all([
-        getDrivers(),
-        getUsers(),
-        getVehicles(),
-      ])
+
+      const [driversData, vehiclesData] =
+        await Promise.all([
+          getDrivers(),
+          getVehicles(),
+        ])
+
       setDrivers(driversData)
-      setUsers(usersData)
       setVehicles(vehiclesData)
-    } catch (fetchError) {
-      console.error(fetchError)
-      setError('Failed to load drivers')
+    } catch (error) {
+      console.error(error)
+
+      setError(
+        getApiErrorMessage(
+          error,
+          'Failed to load drivers.',
+        ),
+      )
     } finally {
       setLoading(false)
     }
   }
 
-  const assignedUserIds = new Set(drivers.map((driver) => driver.userId))
-
-  const availableDriverUsers = users.filter((user) => {
-    if (user.role !== 'DRIVER') return false
-    if (editingDriverId) {
-      const editingDriver = drivers.find((driver) => driver.id === editingDriverId)
-      if (editingDriver?.userId === user.id) return true
-    }
-    return !assignedUserIds.has(user.id)
-  })
-
   function openAddModal() {
     setEditingDriverId(null)
     setFormData(emptyForm)
+    setModalError('')
     setIsModalOpen(true)
   }
 
   function openEditModal(driver: Driver) {
     setEditingDriverId(driver.id)
+
     setFormData({
-      userId: driver.userId,
-      licenseNumber: driver.licenseNumber,
-      assignedVehicleId: driver.assignedVehicleId ?? undefined,
+      name: driver.user.name,
+      email: driver.user.email,
+      phone: driver.user.phone ?? '',
+      password: '',
+      licenseNumber:
+        driver.licenseNumber,
+      assignedVehicleId:
+        driver.assignedVehicleId?.toString() ??
+        '',
     })
+
+    setModalError('')
     setIsModalOpen(true)
   }
 
   function closeModal() {
+    if (saving) {
+      return
+    }
+
     setIsModalOpen(false)
     setEditingDriverId(null)
     setFormData(emptyForm)
+    setModalError('')
   }
 
-  async function handleSubmit(event: React.FormEvent) {
+  function handleInputChange(
+    event:
+      | React.ChangeEvent<HTMLInputElement>
+      | React.ChangeEvent<HTMLSelectElement>,
+  ) {
+    const { name, value } = event.target
+
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }))
+
+    if (modalError) {
+      setModalError('')
+    }
+  }
+
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault()
 
-    if (!formData.userId || !formData.licenseNumber.trim()) {
-      setError('Please select a driver user and enter a license number.')
+    const name = formData.name.trim()
+    const email = formData.email
+      .trim()
+      .toLowerCase()
+
+    const licenseNumber =
+      formData.licenseNumber.trim()
+
+    if (!name || !email || !licenseNumber) {
+      setModalError(
+        'Name, email and licence number are required.',
+      )
+
+      return
+    }
+
+    if (
+      !editingDriverId &&
+      formData.password.length < 8
+    ) {
+      setModalError(
+        'The temporary password must contain at least 8 characters.',
+      )
+
+      return
+    }
+
+    if (
+      editingDriverId &&
+      formData.password &&
+      formData.password.length < 8
+    ) {
+      setModalError(
+        'A new password must contain at least 8 characters.',
+      )
+
       return
     }
 
     try {
       setSaving(true)
-      setError('')
+      setModalError('')
 
-      const payload: CreateDriverData = {
-        userId: formData.userId,
-        licenseNumber: formData.licenseNumber.trim(),
-        assignedVehicleId: formData.assignedVehicleId || undefined,
-      }
+      const assignedVehicleId =
+        formData.assignedVehicleId
+          ? Number(
+              formData.assignedVehicleId,
+            )
+          : undefined
 
       if (editingDriverId) {
-        await updateDriver(editingDriverId, payload)
+        const payload: UpdateDriverData = {
+          name,
+          email,
+          phone:
+            formData.phone.trim() ||
+            undefined,
+          licenseNumber,
+
+          assignedVehicleId:
+            assignedVehicleId ?? null,
+        }
+
+        if (formData.password) {
+          payload.password =
+            formData.password
+        }
+
+        await updateDriver(
+          editingDriverId,
+          payload,
+        )
       } else {
+        const payload: CreateDriverData = {
+          name,
+          email,
+          password:
+            formData.password,
+          phone:
+            formData.phone.trim() ||
+            undefined,
+          licenseNumber,
+          assignedVehicleId,
+        }
+
         await createDriver(payload)
       }
 
       closeModal()
       await fetchData()
-    } catch (submitError) {
-      console.error(submitError)
-      setError('Failed to save driver')
+    } catch (error) {
+      console.error(error)
+
+      setModalError(
+        getApiErrorMessage(
+          error,
+          'Failed to save the driver.',
+        ),
+      )
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleDelete(id: number) {
-    const confirmed = confirm('Are you sure you want to delete this driver profile?')
-    if (!confirmed) return
+  async function handleDeactivate(
+    driver: Driver,
+  ) {
+    if (
+      driver.availabilityStatus ===
+      'INACTIVE'
+    ) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Deactivate ${driver.user.name}?\n\nThe driver will no longer be able to log in, but their trip history will be preserved.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
 
     try {
+      setDeactivatingDriverId(driver.id)
       setError('')
-      await deleteDriver(id)
+
+      await deactivateDriver(driver.id)
       await fetchData()
-    } catch (deleteError) {
-      console.error(deleteError)
-      setError('Failed to delete driver')
+    } catch (error) {
+      console.error(error)
+
+      setError(
+        getApiErrorMessage(
+          error,
+          'Failed to deactivate the driver.',
+        ),
+      )
+    } finally {
+      setDeactivatingDriverId(null)
     }
   }
 
-  const filteredDrivers = drivers.filter((driver) => {
-    const keyword = searchTerm.toLowerCase()
-    const matchesSearch =
-      (driver.user?.name ?? '').toLowerCase().includes(keyword) ||
-      driver.licenseNumber.toLowerCase().includes(keyword) ||
-      (driver.user?.phone ?? '').toLowerCase().includes(keyword) ||
-      (driver.assignedVehicle?.plateNumber ?? '').toLowerCase().includes(keyword)
+  const availableVehicles = useMemo(() => {
+    const assignedVehicleIds = new Set(
+      drivers
+        .filter(
+          (driver) =>
+            driver.id !== editingDriverId,
+        )
+        .map(
+          (driver) =>
+            driver.assignedVehicleId,
+        )
+        .filter(
+          (
+            vehicleId,
+          ): vehicleId is number =>
+            typeof vehicleId === 'number',
+        ),
+    )
 
-    const matchesStatus =
-      statusFilter === 'All' || driver.availabilityStatus === statusFilter
+    return vehicles.filter(
+      (vehicle) =>
+        !assignedVehicleIds.has(vehicle.id),
+    )
+  }, [
+    drivers,
+    vehicles,
+    editingDriverId,
+  ])
 
-    return matchesSearch && matchesStatus
-  })
+  const filteredDrivers = useMemo(() => {
+    const keyword = searchTerm
+      .trim()
+      .toLowerCase()
+
+    return drivers.filter((driver) => {
+      const matchesSearch =
+        driver.user.name
+          .toLowerCase()
+          .includes(keyword) ||
+        driver.user.email
+          .toLowerCase()
+          .includes(keyword) ||
+        driver.licenseNumber
+          .toLowerCase()
+          .includes(keyword) ||
+        (driver.user.phone ?? '')
+          .toLowerCase()
+          .includes(keyword) ||
+        (
+          driver.assignedVehicle
+            ?.plateNumber ?? ''
+        )
+          .toLowerCase()
+          .includes(keyword)
+
+      const matchesStatus =
+        statusFilter === 'ALL' ||
+        driver.availabilityStatus ===
+          statusFilter
+
+      return matchesSearch && matchesStatus
+    })
+  }, [
+    drivers,
+    searchTerm,
+    statusFilter,
+  ])
 
   return (
     <>
-      <header className="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between">
+      <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-8">
         <div>
-          <h2 className="text-xl font-bold">Driver Management</h2>
+          <h2 className="text-xl font-bold">
+            Driver Management
+          </h2>
+
           <p className="text-sm text-slate-500">
-            Link driver accounts to license records and fleet assignments.
+            Create driver accounts, manage
+            licences and assign vehicles.
           </p>
         </div>
 
         <button
+          type="button"
           onClick={openAddModal}
-          // disabled={availableDriverUsers.length === 0 && !editingDriverId}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-3 rounded-xl font-semibold transition"
+          className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
         >
           + Add Driver
         </button>
       </header>
 
       <section className="p-8">
-        <div className="bg-white rounded-2xl shadow border border-slate-200 p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow">
+          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-lg font-bold">Drivers</h3>
+              <h3 className="text-lg font-bold">
+                Drivers
+              </h3>
+
               <p className="text-sm text-slate-500">
                 Total drivers: {drivers.length}
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <input
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none w-full sm:w-72"
-                placeholder="Search driver..."
+                onChange={(event) =>
+                  setSearchTerm(
+                    event.target.value,
+                  )
+                }
+                className="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-blue-500 sm:w-72"
+                placeholder="Search drivers..."
               />
 
               <select
                 value={statusFilter}
                 onChange={(event) =>
                   setStatusFilter(
-                    event.target.value as 'All' | DriverAvailabilityStatus,
+                    event.target.value as
+                      | 'ALL'
+                      | DriverAvailabilityStatus,
                   )
                 }
-                className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
+                className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-blue-500"
               >
-                <option value="All">All Statuses</option>
-                <option value="AVAILABLE">Available</option>
-                <option value="ON_TRIP">On Trip</option>
-                <option value="OFF_DUTY">Off Duty</option>
-                <option value="INACTIVE">Inactive</option>
+                <option value="ALL">
+                  All statuses
+                </option>
+
+                <option value="AVAILABLE">
+                  Available
+                </option>
+
+                <option value="ON_TRIP">
+                  On trip
+                </option>
+
+                <option value="OFF_DUTY">
+                  Off duty
+                </option>
+
+                <option value="INACTIVE">
+                  Inactive
+                </option>
               </select>
             </div>
           </div>
 
-          {loading && <p className="text-slate-500">Loading drivers...</p>}
-
-          {error && <p className="text-red-500 mb-4">{error}</p>}
-
-          {!loading && !error && filteredDrivers.length === 0 && (
-            <p className="text-slate-500">No drivers found.</p>
+          {loading && (
+            <p className="py-8 text-center text-slate-500">
+              Loading drivers...
+            </p>
           )}
 
-          {!loading && filteredDrivers.length > 0 && (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-500">
-                  <th className="py-4">Driver</th>
-                  <th className="py-4">License Number</th>
-                  <th className="py-4">Phone</th>
-                  <th className="py-4">Assigned Vehicle</th>
-                  <th className="py-4">Status</th>
-                  <th className="py-4 text-right">Actions</th>
-                </tr>
-              </thead>
+          {!loading &&
+            filteredDrivers.length === 0 && (
+              <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center">
+                <p className="font-semibold text-slate-700">
+                  No drivers found
+                </p>
 
-              <tbody>
-                {filteredDrivers.map((driver) => (
-                  <tr
-                    key={driver.id}
-                    className="border-b border-slate-100 hover:bg-slate-50"
-                  >
-                    <td className="py-4">
-                      <div className="font-semibold">
-                        {driver.user?.name ?? `User #${driver.userId}`}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        {driver.user?.email ?? 'No email'}
-                      </div>
-                    </td>
+                <p className="mt-1 text-sm text-slate-500">
+                  Create a driver account or
+                  change the search filters.
+                </p>
+              </div>
+            )}
 
-                    <td className="py-4 font-mono">{driver.licenseNumber}</td>
+          {!loading &&
+            filteredDrivers.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-slate-500">
+                      <th className="py-4 pr-4">
+                        Driver
+                      </th>
 
-                    <td className="py-4">
-                      {driver.user?.phone ?? <span className="text-slate-400">—</span>}
-                    </td>
+                      <th className="py-4 pr-4">
+                        Licence
+                      </th>
 
-                    <td className="py-4">
-                      {driver.assignedVehicle ? (
-                        <>
-                          <div className="font-semibold">
-                            {driver.assignedVehicle.plateNumber}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {driver.assignedVehicle.vehicleType}
-                          </div>
-                        </>
-                      ) : (
-                        <span className="text-slate-400">Unassigned</span>
-                      )}
-                    </td>
+                      <th className="py-4 pr-4">
+                        Phone
+                      </th>
 
-                    <td className="py-4">
-                      <StatusBadge status={driver.availabilityStatus} />
-                    </td>
+                      <th className="py-4 pr-4">
+                        Vehicle
+                      </th>
 
-                    <td className="py-4 text-right">
-                      <button
-                        onClick={() => openEditModal(driver)}
-                        className="text-blue-600 font-semibold mr-4"
-                      >
-                        Edit
-                      </button>
+                      <th className="py-4 pr-4">
+                        Status
+                      </th>
 
-                      <button
-                        onClick={() => handleDelete(driver.id)}
-                        className="text-red-500 font-semibold"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                      <th className="py-4 text-right">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {filteredDrivers.map(
+                      (driver) => (
+                        <tr
+                          key={driver.id}
+                          className="border-b border-slate-100 transition hover:bg-slate-50"
+                        >
+                          <td className="py-4 pr-4">
+                            <div className="font-semibold">
+                              {
+                                driver.user
+                                  .name
+                              }
+                            </div>
+
+                            <div className="mt-1 text-xs text-slate-400">
+                              {
+                                driver.user
+                                  .email
+                              }
+                            </div>
+                          </td>
+
+                          <td className="py-4 pr-4 font-mono">
+                            {
+                              driver.licenseNumber
+                            }
+                          </td>
+
+                          <td className="py-4 pr-4">
+                            {driver.user
+                              .phone ?? (
+                              <span className="text-slate-400">
+                                —
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-4 pr-4">
+                            {driver.assignedVehicle ? (
+                              <>
+                                <div className="font-semibold">
+                                  {
+                                    driver
+                                      .assignedVehicle
+                                      .plateNumber
+                                  }
+                                </div>
+
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {
+                                    driver
+                                      .assignedVehicle
+                                      .vehicleType
+                                  }
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-slate-400">
+                                Unassigned
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-4 pr-4">
+                            <StatusBadge
+                              status={
+                                driver.availabilityStatus
+                              }
+                            />
+                          </td>
+
+                          <td className="py-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openEditModal(
+                                  driver,
+                                )
+                              }
+                              className="mr-4 font-semibold text-blue-600 hover:text-blue-700"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                driver.availabilityStatus ===
+                                  'INACTIVE' ||
+                                deactivatingDriverId ===
+                                  driver.id
+                              }
+                              onClick={() =>
+                                void handleDeactivate(
+                                  driver,
+                                )
+                              }
+                              className="font-semibold text-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:text-slate-300"
+                            >
+                              {deactivatingDriverId ===
+                              driver.id
+                                ? 'Deactivating...'
+                                : driver.availabilityStatus ===
+                                    'INACTIVE'
+                                  ? 'Inactive'
+                                  : 'Deactivate'}
+                            </button>
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
         </div>
       </section>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6">
-            <div className="flex justify-between items-center mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+          <div className="my-8 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-6 flex items-start justify-between gap-5">
               <div>
                 <h3 className="text-xl font-bold">
-                  {editingDriverId ? 'Edit Driver' : 'Add Driver'}
+                  {editingDriverId
+                    ? 'Edit Driver'
+                    : 'Create Driver Account'}
                 </h3>
-                <p className="text-sm text-slate-500">
-                  Driver profiles must be linked to an existing user with the
-                  DRIVER role.
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {editingDriverId
+                    ? 'Update the driver account, licence and vehicle assignment.'
+                    : 'Create the login account and driver profile together.'}
                 </p>
               </div>
 
               <button
+                type="button"
                 onClick={closeModal}
-                className="text-slate-400 hover:text-slate-700 text-2xl"
+                disabled={saving}
+                className="text-2xl text-slate-400 transition hover:text-slate-700 disabled:opacity-50"
+                aria-label="Close"
               >
                 ×
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-sm font-semibold text-slate-700">
-                  Driver User
-                </label>
-                <select
-                  value={formData.userId || ''}
-                  onChange={(event) =>
-                    setFormData({
-                      ...formData,
-                      userId: Number(event.target.value),
-                    })
-                  }
-                  className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                  required
-                  disabled={Boolean(editingDriverId)}
-                >
-                  <option value="">Select a driver user</option>
-                  {availableDriverUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name} ({user.email})
-                    </option>
-                  ))}
-                </select>
+            {modalError && (
+              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {modalError}
               </div>
+            )}
 
-              <div>
-                <label className="text-sm font-semibold text-slate-700">
-                  License Number
-                </label>
-                <input
-                  value={formData.licenseNumber}
-                  onChange={(event) =>
-                    setFormData({
-                      ...formData,
-                      licenseNumber: event.target.value,
-                    })
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-5"
+            >
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormInput
+                  label="Full name"
+                  name="name"
+                  value={formData.name}
+                  onChange={
+                    handleInputChange
                   }
-                  className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                  placeholder="e.g. DL-98234125"
+                  placeholder="Enter driver name"
+                  autoComplete="name"
                   required
                 />
-              </div>
 
-              <div>
-                <label className="text-sm font-semibold text-slate-700">
-                  Assigned Vehicle
-                </label>
-                <select
-                  value={formData.assignedVehicleId ?? ''}
-                  onChange={(event) =>
-                    setFormData({
-                      ...formData,
-                      assignedVehicleId: event.target.value
-                        ? Number(event.target.value)
-                        : undefined,
-                    })
+                <FormInput
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={
+                    handleInputChange
                   }
-                  className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                >
-                  <option value="">No vehicle assigned</option>
-                  {vehicles.map((vehicle) => (
-                    <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plateNumber} ({vehicle.vehicleType})
+                  placeholder="driver@company.com"
+                  autoComplete="email"
+                  required
+                />
+
+                <FormInput
+                  label="Phone"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={
+                    handleInputChange
+                  }
+                  placeholder="Optional"
+                  autoComplete="tel"
+                />
+
+                <FormInput
+                  label={
+                    editingDriverId
+                      ? 'New password'
+                      : 'Temporary password'
+                  }
+                  name="password"
+                  type="password"
+                  value={
+                    formData.password
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  placeholder={
+                    editingDriverId
+                      ? 'Leave blank to keep current'
+                      : 'At least 8 characters'
+                  }
+                  autoComplete="new-password"
+                  required={
+                    !editingDriverId
+                  }
+                />
+
+                <FormInput
+                  label="Licence number"
+                  name="licenseNumber"
+                  value={
+                    formData.licenseNumber
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  placeholder="e.g. DL-98234125"
+                  autoComplete="off"
+                  required
+                />
+
+                <div>
+                  <label
+                    htmlFor="assignedVehicleId"
+                    className="mb-2 block text-sm font-semibold text-slate-700"
+                  >
+                    Assigned vehicle
+                  </label>
+
+                  <select
+                    id="assignedVehicleId"
+                    name="assignedVehicleId"
+                    value={
+                      formData.assignedVehicleId
+                    }
+                    onChange={
+                      handleInputChange
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="">
+                      No vehicle assigned
                     </option>
-                  ))}
-                </select>
+
+                    {availableVehicles.map(
+                      (vehicle) => (
+                        <option
+                          key={vehicle.id}
+                          value={vehicle.id}
+                        >
+                          {
+                            vehicle.plateNumber
+                          }{' '}
+                          (
+                          {
+                            vehicle.vehicleType
+                          }
+                          )
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              {!editingDriverId && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-800">
+                  Give the temporary password
+                  securely to the driver. The
+                  driver will use the normal login
+                  page and will automatically be
+                  redirected to the driver portal.
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="bg-slate-200 text-slate-700 px-5 py-3 rounded-xl font-semibold"
+                  disabled={saving}
+                  className="rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-300 disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -396,7 +826,7 @@ function DriversView() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold"
+                  className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving
                     ? 'Saving...'
@@ -413,23 +843,101 @@ function DriversView() {
   )
 }
 
-function StatusBadge({ status }: { status: DriverAvailabilityStatus }) {
-  const baseClass = 'px-3 py-1 rounded-lg text-xs font-semibold'
+function FormInput({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+  type = 'text',
+  required = false,
+}: {
+  label: string
+  name: string
+  value: string
+  onChange: React.ChangeEventHandler<HTMLInputElement>
+  placeholder: string
+  autoComplete: string
+  type?: string
+  required?: boolean
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={name}
+        className="mb-2 block text-sm font-semibold text-slate-700"
+      >
+        {label}
+      </label>
 
-  const statusClass =
-    status === 'AVAILABLE'
-      ? 'bg-green-100 text-green-700'
-      : status === 'ON_TRIP'
-        ? 'bg-blue-100 text-blue-700'
-        : status === 'OFF_DUTY'
-          ? 'bg-slate-100 text-slate-700'
-          : 'bg-red-100 text-red-700'
+      <input
+        id={name}
+        name={name}
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        required={required}
+        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+      />
+    </div>
+  )
+}
+
+function StatusBadge({
+  status,
+}: {
+  status: DriverAvailabilityStatus
+}) {
+  const statusClasses: Record<
+    DriverAvailabilityStatus,
+    string
+  > = {
+    AVAILABLE:
+      'bg-green-100 text-green-700',
+    ON_TRIP:
+      'bg-blue-100 text-blue-700',
+    OFF_DUTY:
+      'bg-amber-100 text-amber-700',
+    INACTIVE:
+      'bg-red-100 text-red-700',
+  }
 
   return (
-    <span className={`${baseClass} ${statusClass}`}>
+    <span
+      className={`inline-flex rounded-lg px-3 py-1 text-xs font-semibold ${statusClasses[status]}`}
+    >
       {status.replaceAll('_', ' ')}
     </span>
   )
+}
+
+function getApiErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+): string {
+  if (!axios.isAxiosError(error)) {
+    return fallbackMessage
+  }
+
+  const message =
+    error.response?.data?.message
+
+  if (Array.isArray(message)) {
+    return message.join(', ')
+  }
+
+  if (typeof message === 'string') {
+    return message
+  }
+
+  if (!error.response) {
+    return 'Unable to connect to the server.'
+  }
+
+  return fallbackMessage
 }
 
 export default DriversView

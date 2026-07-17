@@ -1,15 +1,26 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+import {
+  DriverAvailabilityStatus,
+  Prisma,
+  UserRole,
+  UserStatus,
+} from '@prisma/client'
+import * as bcrypt from 'bcrypt'
+
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateDriverDto } from './dto/create-driver.dto'
 import { UpdateDriverDto } from './dto/update-driver.dto'
 
 @Injectable()
 export class DriversService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
 
   findAll() {
     return this.prisma.driver.findMany({
@@ -35,12 +46,17 @@ export class DriversService {
           },
         },
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
     })
   }
 
   async findOne(id: number) {
     const driver = await this.prisma.driver.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
       include: {
         user: {
           select: {
@@ -66,186 +82,401 @@ export class DriversService {
     })
 
     if (!driver) {
-      throw new NotFoundException(`Driver with ID ${id} not found`)
+      throw new NotFoundException(
+        `Driver with ID ${id} was not found`,
+      )
     }
 
     return driver
   }
 
-  async create(createDriverDto: CreateDriverDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: createDriverDto.userId },
+  async findByUserId(userId: number) {
+    const driver = await this.prisma.driver.findUnique({
+      where: {
+        userId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            phone: true,
+            status: true,
+          },
+        },
+        assignedVehicle: {
+          select: {
+            id: true,
+            plateNumber: true,
+            vehicleType: true,
+            capacity: true,
+            status: true,
+            currentMileage: true,
+          },
+        },
+      },
     })
 
-    if (!user) {
+    if (!driver) {
       throw new NotFoundException(
-        `User with ID ${createDriverDto.userId} not found`,
+        `No driver profile exists for user ID ${userId}`,
       )
     }
 
-    if (user.role !== 'DRIVER') {
-      throw new BadRequestException(
-        `User with ID ${createDriverDto.userId} is not a DRIVER`,
-      )
-    }
+    return driver
+  }
 
-    const existingDriver = await this.prisma.driver.findUnique({
-      where: { userId: createDriverDto.userId },
-    })
+  async create(
+    createDriverDto: CreateDriverDto,
+  ) {
+    const normalizedEmail =
+      createDriverDto.email.trim().toLowerCase()
 
-    if (existingDriver) {
-      throw new BadRequestException(
-        `User with ID ${createDriverDto.userId} already has a driver profile`,
+    const existingUser =
+      await this.prisma.user.findUnique({
+        where: {
+          email: normalizedEmail,
+        },
+        select: {
+          id: true,
+        },
+      })
+
+    if (existingUser) {
+      throw new ConflictException(
+        'An account with this email already exists',
       )
     }
 
     if (createDriverDto.assignedVehicleId) {
-      const vehicle = await this.prisma.vehicle.findUnique({
-        where: { id: createDriverDto.assignedVehicleId },
-      })
-
-      if (!vehicle) {
-        throw new NotFoundException(
-          `Vehicle with ID ${createDriverDto.assignedVehicleId} not found`,
-        )
-      }
+      await this.validateVehicleAssignment(
+        createDriverDto.assignedVehicleId,
+      )
     }
 
-    return this.prisma.driver.create({
-      data: {
-        user: {
-          connect: { id: createDriverDto.userId },
+    const passwordHash = await bcrypt.hash(
+      createDriverDto.password,
+      12,
+    )
+
+    try {
+      return await this.prisma.$transaction(
+        async (transaction) => {
+          const user = await transaction.user.create({
+            data: {
+              name: createDriverDto.name.trim(),
+              email: normalizedEmail,
+              passwordHash,
+              phone:
+                createDriverDto.phone?.trim() || null,
+              role: UserRole.DRIVER,
+              status: UserStatus.ACTIVE,
+            },
+          })
+
+          return transaction.driver.create({
+            data: {
+              user: {
+                connect: {
+                  id: user.id,
+                },
+              },
+              licenseNumber:
+                createDriverDto.licenseNumber.trim(),
+              availabilityStatus:
+                DriverAvailabilityStatus.AVAILABLE,
+              assignedVehicle:
+                createDriverDto.assignedVehicleId
+                  ? {
+                      connect: {
+                        id: createDriverDto.assignedVehicleId,
+                      },
+                    }
+                  : undefined,
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                  phone: true,
+                  status: true,
+                },
+              },
+              assignedVehicle: {
+                select: {
+                  id: true,
+                  plateNumber: true,
+                  vehicleType: true,
+                  capacity: true,
+                  status: true,
+                  currentMileage: true,
+                },
+              },
+            },
+          })
         },
-        licenseNumber: createDriverDto.licenseNumber,
-        assignedVehicle: createDriverDto.assignedVehicleId
-          ? {
-              connect: { id: createDriverDto.assignedVehicleId },
-            }
-          : undefined,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            phone: true,
-            status: true,
-          },
-        },
-        assignedVehicle: {
-          select: {
-            id: true,
-            plateNumber: true,
-            vehicleType: true,
-            capacity: true,
-            status: true,
-            currentMileage: true,
-          },
-        },
-      },
-    })
+      )
+    } catch (error) {
+      this.handlePrismaError(error)
+      throw error
+    }
   }
 
-  async update(id: number, updateDriverDto: UpdateDriverDto) {
-    await this.findOne(id)
+  async update(
+    id: number,
+    updateDriverDto: UpdateDriverDto,
+  ) {
+    const existingDriver = await this.findOne(id)
 
-    if (updateDriverDto.userId) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: updateDriverDto.userId },
-      })
+    let normalizedEmail: string | undefined
 
-      if (!user) {
-        throw new NotFoundException(`User with ID ${updateDriverDto.userId} not found`)
-      }
+    if (updateDriverDto.email !== undefined) {
+      normalizedEmail =
+        updateDriverDto.email.trim().toLowerCase()
 
-      if (user.role !== 'DRIVER') {
-        throw new BadRequestException(
-          `User with ID ${updateDriverDto.userId} is not a DRIVER`,
+      const userWithEmail =
+        await this.prisma.user.findUnique({
+          where: {
+            email: normalizedEmail,
+          },
+          select: {
+            id: true,
+          },
+        })
+
+      if (
+        userWithEmail &&
+        userWithEmail.id !== existingDriver.userId
+      ) {
+        throw new ConflictException(
+          'An account with this email already exists',
         )
       }
     }
 
-    if (updateDriverDto.assignedVehicleId) {
-      const vehicle = await this.prisma.vehicle.findUnique({
-        where: { id: updateDriverDto.assignedVehicleId },
-      })
-
-      if (!vehicle) {
-        throw new NotFoundException(
-          `Vehicle with ID ${updateDriverDto.assignedVehicleId} not found`,
-        )
-      }
+    if (
+      typeof updateDriverDto.assignedVehicleId ===
+      'number'
+    ) {
+      await this.validateVehicleAssignment(
+        updateDriverDto.assignedVehicleId,
+        id,
+      )
     }
 
-    return this.prisma.driver.update({
-      where: { id },
-      data: {
-        user: updateDriverDto.userId
-          ? {
-              connect: { id: updateDriverDto.userId },
-            }
-          : undefined,
-        licenseNumber: updateDriverDto.licenseNumber,
-        assignedVehicle: updateDriverDto.assignedVehicleId
-          ? {
-              connect: { id: updateDriverDto.assignedVehicleId },
-            }
-          : undefined,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            phone: true,
-            status: true,
-          },
+    const passwordHash =
+      updateDriverDto.password?.trim()
+        ? await bcrypt.hash(
+            updateDriverDto.password,
+            12,
+          )
+        : undefined
+
+    try {
+      return await this.prisma.$transaction(
+        async (transaction) => {
+          await transaction.user.update({
+            where: {
+              id: existingDriver.userId,
+            },
+            data: {
+              name:
+                updateDriverDto.name !== undefined
+                  ? updateDriverDto.name.trim()
+                  : undefined,
+
+              email: normalizedEmail,
+
+              phone:
+                updateDriverDto.phone !== undefined
+                  ? updateDriverDto.phone.trim() ||
+                    null
+                  : undefined,
+
+              passwordHash,
+            },
+          })
+
+          return transaction.driver.update({
+            where: {
+              id,
+            },
+            data: {
+              licenseNumber:
+                updateDriverDto.licenseNumber !==
+                undefined
+                  ? updateDriverDto.licenseNumber.trim()
+                  : undefined,
+
+              assignedVehicle:
+                updateDriverDto.assignedVehicleId ===
+                undefined
+                  ? undefined
+                  : updateDriverDto.assignedVehicleId ===
+                      null
+                    ? {
+                        disconnect: true,
+                      }
+                    : {
+                        connect: {
+                          id: updateDriverDto.assignedVehicleId,
+                        },
+                      },
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                  phone: true,
+                  status: true,
+                },
+              },
+              assignedVehicle: {
+                select: {
+                  id: true,
+                  plateNumber: true,
+                  vehicleType: true,
+                  capacity: true,
+                  status: true,
+                  currentMileage: true,
+                },
+              },
+            },
+          })
         },
-        assignedVehicle: {
-          select: {
-            id: true,
-            plateNumber: true,
-            vehicleType: true,
-            capacity: true,
-            status: true,
-            currentMileage: true,
-          },
-        },
-      },
-    })
+      )
+    } catch (error) {
+      this.handlePrismaError(error)
+      throw error
+    }
   }
 
-  async remove(id: number) {
-    await this.findOne(id)
+  async deactivate(id: number) {
+    const existingDriver = await this.findOne(id)
 
-    return this.prisma.driver.delete({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            phone: true,
-            status: true,
+    if (
+      existingDriver.availabilityStatus ===
+      DriverAvailabilityStatus.ON_TRIP
+    ) {
+      throw new BadRequestException(
+        'A driver currently on a trip cannot be deactivated',
+      )
+    }
+
+    return this.prisma.$transaction(
+      async (transaction) => {
+        await transaction.user.update({
+          where: {
+            id: existingDriver.userId,
           },
-        },
-        assignedVehicle: {
-          select: {
-            id: true,
-            plateNumber: true,
-            vehicleType: true,
-            capacity: true,
-            status: true,
-            currentMileage: true,
+          data: {
+            status: UserStatus.INACTIVE,
           },
-        },
+        })
+
+        return transaction.driver.update({
+          where: {
+            id,
+          },
+          data: {
+            availabilityStatus:
+              DriverAvailabilityStatus.INACTIVE,
+
+            assignedVehicle: {
+              disconnect: true,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                phone: true,
+                status: true,
+              },
+            },
+            assignedVehicle: {
+              select: {
+                id: true,
+                plateNumber: true,
+                vehicleType: true,
+                capacity: true,
+                status: true,
+                currentMileage: true,
+              },
+            },
+          },
+        })
       },
-    })
+    )
+  }
+
+  private async validateVehicleAssignment(
+    vehicleId: number,
+    currentDriverId?: number,
+  ) {
+    const vehicle =
+      await this.prisma.vehicle.findUnique({
+        where: {
+          id: vehicleId,
+        },
+        select: {
+          id: true,
+          status: true,
+          plateNumber: true,
+        },
+      })
+
+    if (!vehicle) {
+      throw new NotFoundException(
+        `Vehicle with ID ${vehicleId} was not found`,
+      )
+    }
+
+    const assignedDriver =
+      await this.prisma.driver.findFirst({
+        where: {
+          assignedVehicleId: vehicleId,
+
+          ...(currentDriverId
+            ? {
+                id: {
+                  not: currentDriverId,
+                },
+              }
+            : {}),
+        },
+        select: {
+          id: true,
+        },
+      })
+
+    if (assignedDriver) {
+      throw new BadRequestException(
+        `Vehicle ${vehicle.plateNumber} is already assigned to another driver`,
+      )
+    }
+  }
+
+  private handlePrismaError(error: unknown) {
+    if (
+      error instanceof
+        Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictException(
+        'The email, licence number, or vehicle assignment already exists',
+      )
+    }
   }
 }
