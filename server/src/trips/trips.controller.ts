@@ -29,9 +29,7 @@ export class TripsController {
     @Param('driverId', ParseIntPipe)
     driverId: number,
   ) {
-    return this.tripsService.findByDriverId(
-      driverId,
-    )
+    return this.tripsService.findByDriverId(driverId)
   }
 
   @Get(':id')
@@ -47,9 +45,31 @@ export class TripsController {
     @Body()
     createTripDto: CreateTripDto,
   ) {
-    return this.tripsService.create(
-      createTripDto,
-    )
+    return this.tripsService.create(createTripDto)
+  }
+
+  @Patch(':id/start')
+  startTrip(
+    @Param('id', ParseIntPipe)
+    id: number,
+  ) {
+    return this.tripsService.startTrip(id)
+  }
+
+  @Patch(':id/complete')
+  completeTrip(
+    @Param('id', ParseIntPipe)
+    id: number,
+  ) {
+    return this.tripsService.completeTrip(id)
+  }
+
+  @Patch(':id/cancel')
+  cancelTrip(
+    @Param('id', ParseIntPipe)
+    id: number,
+  ) {
+    return this.tripsService.cancelTrip(id)
   }
 
   @Patch(':id')

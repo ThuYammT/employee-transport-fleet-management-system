@@ -59,6 +59,36 @@ export async function updateTrip(
   return response.data
 }
 
+export async function startTrip(
+  id: number,
+): Promise<Trip> {
+  const response = await api.patch<Trip>(
+    `/trips/${id}/start`,
+  )
+
+  return response.data
+}
+
+export async function completeTrip(
+  id: number,
+): Promise<Trip> {
+  const response = await api.patch<Trip>(
+    `/trips/${id}/complete`,
+  )
+
+  return response.data
+}
+
+export async function cancelTrip(
+  id: number,
+): Promise<Trip> {
+  const response = await api.patch<Trip>(
+    `/trips/${id}/cancel`,
+  )
+
+  return response.data
+}
+
 export async function deleteTrip(
   id: number,
 ): Promise<void> {

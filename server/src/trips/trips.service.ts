@@ -529,7 +529,159 @@ export class TripsService {
       throw error
     }
   }
+  async startTrip(id: number) {
+  const trip = await this.findOne(id)
 
+  if (trip.status !== TripStatus.SCHEDULED) {
+    throw new BadRequestException(
+      'Only a scheduled trip can be started',
+    )
+  }
+
+  return this.prisma.$transaction(
+    async (transaction) => {
+      await transaction.driver.update({
+        where: {
+          id: trip.driverId,
+        },
+
+        data: {
+          availabilityStatus:
+            DriverAvailabilityStatus.ON_TRIP,
+        },
+      })
+
+      await transaction.vehicle.update({
+        where: {
+          id: trip.vehicleId,
+        },
+
+        data: {
+          status: VehicleStatus.IN_USE,
+        },
+      })
+
+      return transaction.trip.update({
+        where: {
+          id,
+        },
+
+        data: {
+          status: TripStatus.IN_PROGRESS,
+          startTime: new Date(),
+          endTime: null,
+        },
+
+        include: tripInclude,
+      })
+    },
+  )
+}
+
+async completeTrip(id: number) {
+  const trip = await this.findOne(id)
+
+  if (trip.status !== TripStatus.IN_PROGRESS) {
+    throw new BadRequestException(
+      'Only an in-progress trip can be completed',
+    )
+  }
+
+  return this.prisma.$transaction(
+    async (transaction) => {
+      const completedTrip =
+        await transaction.trip.update({
+          where: {
+            id,
+          },
+
+          data: {
+            status: TripStatus.COMPLETED,
+            endTime: new Date(),
+          },
+
+          include: tripInclude,
+        })
+
+      await transaction.driver.update({
+        where: {
+          id: trip.driverId,
+        },
+
+        data: {
+          availabilityStatus:
+            DriverAvailabilityStatus.AVAILABLE,
+        },
+      })
+
+      await transaction.vehicle.update({
+        where: {
+          id: trip.vehicleId,
+        },
+
+        data: {
+          status: VehicleStatus.AVAILABLE,
+        },
+      })
+
+      return completedTrip
+    },
+  )
+}
+
+async cancelTrip(id: number) {
+  const trip = await this.findOne(id)
+
+  if (
+    trip.status === TripStatus.COMPLETED ||
+    trip.status === TripStatus.CANCELLED
+  ) {
+    throw new BadRequestException(
+      'This trip can no longer be cancelled',
+    )
+  }
+
+  return this.prisma.$transaction(
+    async (transaction) => {
+      const cancelledTrip =
+        await transaction.trip.update({
+          where: {
+            id,
+          },
+
+          data: {
+            status: TripStatus.CANCELLED,
+            endTime: new Date(),
+          },
+
+          include: tripInclude,
+        })
+
+      await transaction.driver.update({
+        where: {
+          id: trip.driverId,
+        },
+
+        data: {
+          availabilityStatus:
+            DriverAvailabilityStatus.AVAILABLE,
+        },
+      })
+
+      await transaction.vehicle.update({
+        where: {
+          id: trip.vehicleId,
+        },
+
+        data: {
+          status: VehicleStatus.AVAILABLE,
+        },
+      })
+
+      return cancelledTrip
+    },
+  )
+}
   async remove(id: number) {
     const trip = await this.findOne(id)
 
