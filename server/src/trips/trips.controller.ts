@@ -4,43 +4,73 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
-  ParseIntPipe,
 } from '@nestjs/common'
+
 import { TripsService } from './trips.service'
 import { CreateTripDto } from './dto/create-trip.dto'
 import { UpdateTripDto } from './dto/update-trip.dto'
 
 @Controller('trips')
 export class TripsController {
-  constructor(private readonly tripsService: TripsService) {}
+  constructor(
+    private readonly tripsService: TripsService,
+  ) {}
 
   @Get()
   findAll() {
     return this.tripsService.findAll()
   }
 
+  @Get('driver/:driverId')
+  findByDriverId(
+    @Param('driverId', ParseIntPipe)
+    driverId: number,
+  ) {
+    return this.tripsService.findByDriverId(
+      driverId,
+    )
+  }
+
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(
+    @Param('id', ParseIntPipe)
+    id: number,
+  ) {
     return this.tripsService.findOne(id)
   }
 
   @Post()
-  create(@Body() createTripDto: CreateTripDto) {
-    return this.tripsService.create(createTripDto)
+  create(
+    @Body()
+    createTripDto: CreateTripDto,
+  ) {
+    return this.tripsService.create(
+      createTripDto,
+    )
   }
 
   @Patch(':id')
   update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateTripDto: UpdateTripDto,
+    @Param('id', ParseIntPipe)
+    id: number,
+
+    @Body()
+    updateTripDto: UpdateTripDto,
   ) {
-    return this.tripsService.update(id, updateTripDto)
+    return this.tripsService.update(
+      id,
+      updateTripDto,
+    )
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(
+    @Param('id', ParseIntPipe)
+    id: number,
+  ) {
     return this.tripsService.remove(id)
   }
 }
