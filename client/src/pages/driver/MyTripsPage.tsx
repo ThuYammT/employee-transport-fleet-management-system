@@ -718,7 +718,7 @@ function StatCard({
         {title}
       </p>
 
-      <h3 className="mt-2 text-3xl font-bold">
+      <h3 className="mt-1 text-2xl font-bold">
         {value}
       </h3>
     </div>
