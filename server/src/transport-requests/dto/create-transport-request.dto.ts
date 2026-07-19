@@ -4,11 +4,13 @@ import {
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
   MaxLength,
   Matches,
-} from 'class-validator'
+} from '@nestjs/class-validator'
 
 export class CreateTransportRequestDto {
   @IsInt()
@@ -40,11 +42,21 @@ export class CreateTransportRequestDto {
   @IsLongitude()
   destinationLongitude?: number
 
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  estimatedDistanceKm?: number
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  estimatedDurationMinutes?: number
+
   @IsDateString()
   requestDate: string
 
   @IsString()
-  @Matches(/^([01]\\d|2[0-3]):([0-5]\\d)$/, {
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
     message: 'requestTime must use HH:mm format',
   })
   requestTime: string

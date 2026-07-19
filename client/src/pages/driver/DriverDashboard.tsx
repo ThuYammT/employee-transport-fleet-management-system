@@ -794,7 +794,6 @@ function DashboardCard({
         to="/driver/my-trips"
         className="mt-3 inline-block text-sm font-semibold text-blue-600 hover:text-blue-700"
       >
-        View details
       </Link>
     </div>
   )
