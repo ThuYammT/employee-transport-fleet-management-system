@@ -1,133 +1,75 @@
 import axios from 'axios'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-
-import { createTransportRequest } from '../../services/transport-request.service'
+import LocationSearchInput from '../../components/maps/LocationSearchInput'
+import RouteMap from '../../components/maps/RouteMap'
+import { createTransportRequest, estimateRoute } from '../../services/transport-request.service'
+import type { LocationSuggestion, RouteEstimate } from '../../types/transport-request'
 import { getCurrentUser } from '../../utils/user-session'
-type TransportRequestFormData = {
-  pickupLocation: string
-  destination: string
-  requestDate: string
-  requestTime: string
-  purpose: string
-}
-
-const initialFormData: TransportRequestFormData = {
-  pickupLocation: '',
-  destination: '',
-  requestDate: '',
-  requestTime: '',
-  purpose: '',
-}
 
 function NewTransportRequestPage() {
   const navigate = useNavigate()
-
-  const [formData, setFormData] =
-    useState<TransportRequestFormData>(initialFormData)
-
+  const [pickup, setPickup] = useState<LocationSuggestion | null>(null)
+  const [destination, setDestination] = useState<LocationSuggestion | null>(null)
+  const [pickupText, setPickupText] = useState('')
+  const [destinationText, setDestinationText] = useState('')
+  const [requestDate, setRequestDate] = useState('')
+  const [requestTime, setRequestTime] = useState('')
+  const [purpose, setPurpose] = useState('')
+  const [route, setRoute] = useState<RouteEstimate | null>(null)
+  const [routeLoading, setRouteLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  function handleInputChange(
-    event: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement
-    >,
-  ) {
-    const { name, value } = event.target
+  useEffect(() => {
+    if (!pickup || !destination) { setRoute(null); return }
+    const controller = new AbortController()
+    ;(async () => {
+      try {
+        setRouteLoading(true)
+        setError('')
+        setRoute(await estimateRoute({
+          pickupLatitude: pickup.latitude,
+          pickupLongitude: pickup.longitude,
+          destinationLatitude: destination.latitude,
+          destinationLongitude: destination.longitude,
+        }, controller.signal))
+      } catch (error) {
+        if (!axios.isCancel(error) && !controller.signal.aborted) {
+          setError(getMessage(error, 'Failed to calculate the route'))
+          setRoute(null)
+        }
+      } finally {
+        if (!controller.signal.aborted) setRouteLoading(false)
+      }
+    })()
+    return () => controller.abort()
+  }, [pickup, destination])
 
-    setFormData((currentData) => ({
-      ...currentData,
-      [name]: value,
-    }))
-  }
-
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-
-    const currentUser = getCurrentUser()
-
-    if (
-      !currentUser ||
-      currentUser.role !== 'EMPLOYEE'
-    ) {
-      navigate('/login', { replace: true })
-      return
-    }
-
-    const employeeId = currentUser.id
-
-    const pickupLocation = formData.pickupLocation.trim()
-    const destination = formData.destination.trim()
-    const purpose = formData.purpose.trim()
-
-    if (
-      !pickupLocation ||
-      !destination ||
-      !formData.requestDate ||
-      !formData.requestTime ||
-      !purpose
-    ) {
-      setError('Please complete all required fields.')
-      return
-    }
-
-    if (pickupLocation.toLowerCase() === destination.toLowerCase()) {
-      setError(
-        'Pickup location and destination must be different.',
-      )
-      return
-    }
-
-    const selectedDateTime = new Date(
-      `${formData.requestDate}T${formData.requestTime}`,
-    )
-
-    if (Number.isNaN(selectedDateTime.getTime())) {
-      setError('Please provide a valid request date and time.')
-      return
-    }
+    const user = getCurrentUser()
+    if (!user || user.role !== 'EMPLOYEE') { navigate('/login', { replace: true }); return }
+    if (!pickup || !destination || !route) { setError('Select both locations and wait for the route estimate'); return }
 
     try {
       setSubmitting(true)
       setError('')
-
       await createTransportRequest({
-        employeeId,
-        pickupLocation,
-        destination,
-        requestDate: formData.requestDate,
-        requestTime: formData.requestTime,
-        purpose,
+        employeeId: user.id,
+        pickupLocation: pickup.label,
+        pickupLatitude: pickup.latitude,
+        pickupLongitude: pickup.longitude,
+        destination: destination.label,
+        destinationLatitude: destination.latitude,
+        destinationLongitude: destination.longitude,
+        requestDate,
+        requestTime,
+        purpose: purpose.trim(),
       })
-
       navigate('/employee/my-requests')
     } catch (error) {
-      console.error(error)
-
-      if (axios.isAxiosError(error)) {
-        const backendMessage = error.response?.data?.message
-
-        if (Array.isArray(backendMessage)) {
-          setError(backendMessage.join(', '))
-        } else if (typeof backendMessage === 'string') {
-          setError(backendMessage)
-        } else if (error.response?.status === 404) {
-          setError(
-            'The employee account could not be found. Please create or select an employee account again.',
-          )
-        } else if (error.response?.status === 400) {
-          setError(
-            'The request information is invalid. Please review the form.',
-          )
-        } else {
-          setError('Failed to submit the transport request.')
-        }
-      } else {
-        setError('Failed to submit the transport request.')
-      }
+      setError(getMessage(error, 'Failed to submit request'))
     } finally {
       setSubmitting(false)
     }
@@ -136,111 +78,77 @@ function NewTransportRequestPage() {
   return (
     <>
       <header className="border-b border-slate-200 bg-white px-8 py-5">
-        <h1 className="text-xl font-bold text-slate-900">
-          New Transport Request
-        </h1>
-
-        <p className="text-sm text-slate-500">
-          Submit a request for employee transportation.
-        </p>
+        <h1 className="text-xl font-bold text-slate-900">New Transport Request</h1>
+        <p className="text-sm text-slate-500">Select locations and review the route estimate.</p>
       </header>
 
       <section className="p-8">
-        <div className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-900">
-              Request Details
-            </h2>
+        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          {error && <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>}
 
-            <p className="mt-1 text-sm text-slate-500">
-              Enter the route, schedule and purpose of your trip.
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={submit}>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <FormField
+              <LocationSearchInput
+                id="pickup"
                 label="Pickup Location"
-                name="pickupLocation"
-                value={formData.pickupLocation}
-                onChange={handleInputChange}
-                placeholder="Enter pickup location"
+                placeholder="Search pickup location"
+                value={pickupText}
+                selectedLocation={pickup}
+                onTextChange={(value) => { setPickupText(value); setPickup(null); setRoute(null) }}
+                onSelect={(value) => { setPickup(value); setPickupText(value.label) }}
+                disabled={submitting}
               />
-
-              <FormField
+              <LocationSearchInput
+                id="destination"
                 label="Destination"
-                name="destination"
-                value={formData.destination}
-                onChange={handleInputChange}
-                placeholder="Enter destination"
+                placeholder="Search destination"
+                value={destinationText}
+                selectedLocation={destination}
+                onTextChange={(value) => { setDestinationText(value); setDestination(null); setRoute(null) }}
+                onSelect={(value) => { setDestination(value); setDestinationText(value.label) }}
+                disabled={submitting}
               />
 
-              <FormField
-                label="Request Date"
-                name="requestDate"
-                type="date"
-                value={formData.requestDate}
-                onChange={handleInputChange}
-              />
-
-              <FormField
-                label="Request Time"
-                name="requestTime"
-                type="time"
-                value={formData.requestTime}
-                onChange={handleInputChange}
-              />
+              <Field label="Request Date" type="date" value={requestDate} onChange={setRequestDate} />
+              <Field label="Request Time" type="time" value={requestTime} onChange={setRequestTime} />
             </div>
+
+            {routeLoading && <div className="mt-6 rounded-xl bg-blue-50 p-5 text-blue-700">Calculating route...</div>}
+
+            {route && (
+              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Stat label="Estimated distance" value={`${route.estimatedDistanceKm.toFixed(2)} km`} />
+                <Stat label="Estimated duration" value={`${route.estimatedDurationMinutes} min`} />
+              </div>
+            )}
+
+            {pickup && destination && route && (
+              <div className="mt-6">
+                <RouteMap
+                  pickup={[pickup.latitude, pickup.longitude]}
+                  destination={[destination.latitude, destination.longitude]}
+                  routeCoordinates={route.routeCoordinates}
+                />
+              </div>
+            )}
 
             <div className="mt-6">
-              <label
-                htmlFor="purpose"
-                className="mb-2 block text-sm font-semibold text-slate-700"
-              >
-                Purpose
-              </label>
-
+              <label htmlFor="purpose" className="mb-2 block text-sm font-semibold text-slate-700">Purpose</label>
               <textarea
                 id="purpose"
-                name="purpose"
-                value={formData.purpose}
-                onChange={handleInputChange}
-                placeholder="Explain why transportation is required"
-                required
+                value={purpose}
+                onChange={(event) => setPurpose(event.target.value)}
                 rows={5}
                 maxLength={500}
-                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                required
+                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
-
-              <div className="mt-2 flex justify-end">
-                <span className="text-xs text-slate-400">
-                  {formData.purpose.length}/500
-                </span>
-              </div>
             </div>
 
-            <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
-              <Link
-                to="/employee"
-                className="rounded-xl border border-slate-300 px-6 py-3 text-center font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </Link>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting
-                  ? 'Submitting Request...'
-                  : 'Submit Request'}
+            <div className="mt-8 flex justify-end gap-3 border-t border-slate-200 pt-6">
+              <Link to="/employee" className="rounded-xl border border-slate-300 px-6 py-3 font-semibold text-slate-700">Cancel</Link>
+              <button disabled={submitting || routeLoading || !route} className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white disabled:opacity-60">
+                {submitting ? 'Submitting...' : 'Submit Request'}
               </button>
             </div>
           </form>
@@ -250,42 +158,19 @@ function NewTransportRequestPage() {
   )
 }
 
-function FormField({
-  label,
-  name,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-}: {
-  label: string
-  name: string
-  value: string
-  onChange: React.ChangeEventHandler<HTMLInputElement>
-  placeholder?: string
-  type?: 'text' | 'date' | 'time'
-}) {
-  return (
-    <div>
-      <label
-        htmlFor={name}
-        className="mb-2 block text-sm font-semibold text-slate-700"
-      >
-        {label}
-      </label>
+function Field({ label, type, value, onChange }: { label: string; type: 'date' | 'time'; value: string; onChange: (value: string) => void }) {
+  return <div><label className="mb-2 block text-sm font-semibold text-slate-700">{label}</label><input type={type} value={value} onChange={(e) => onChange(e.target.value)} required className="w-full rounded-xl border border-slate-300 px-4 py-3" /></div>
+}
 
-      <input
-        id={name}
-        name={name}
-        type={type}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        required
-        className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-      />
-    </div>
-  )
+function Stat({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5"><p className="text-sm text-blue-700">{label}</p><p className="mt-2 text-2xl font-bold text-blue-950">{value}</p></div>
+}
+
+function getMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) return fallback
+  const message = error.response?.data?.message
+  if (Array.isArray(message)) return message.join(', ')
+  return typeof message === 'string' ? message : fallback
 }
 
 export default NewTransportRequestPage

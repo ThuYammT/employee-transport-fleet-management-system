@@ -2,11 +2,26 @@ import type { Driver } from './driver'
 import type { TripStatus } from './trip'
 import type { Vehicle } from './vehicle'
 
-export type TransportRequestStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'CANCELLED'
+export type TransportRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+
+export type LocationSuggestion = {
+  id: string
+  label: string
+  name: string | null
+  locality: string | null
+  region: string | null
+  country: string | null
+  latitude: number
+  longitude: number
+}
+
+export type RouteEstimate = {
+  distanceMeters: number
+  estimatedDistanceKm: number
+  durationSeconds: number
+  estimatedDurationMinutes: number
+  routeCoordinates: [number, number][]
+}
 
 export type RequestEmployee = {
   id: number
@@ -35,7 +50,13 @@ export type TransportRequest = {
   id: number
   employeeId: number
   pickupLocation: string
+  pickupLatitude?: number | null
+  pickupLongitude?: number | null
   destination: string
+  destinationLatitude?: number | null
+  destinationLongitude?: number | null
+  estimatedDistanceKm?: number | null
+  estimatedDurationMinutes?: number | null
   requestDate: string
   requestTime: string
   purpose: string
@@ -49,13 +70,16 @@ export type TransportRequest = {
 export type CreateTransportRequestData = {
   employeeId: number
   pickupLocation: string
+  pickupLatitude?: number
+  pickupLongitude?: number
   destination: string
+  destinationLatitude?: number
+  destinationLongitude?: number
   requestDate: string
   requestTime: string
   purpose: string
 }
 
-export type UpdateTransportRequestData =
-  Partial<CreateTransportRequestData> & {
-    status?: TransportRequestStatus
-  }
+export type UpdateTransportRequestData = Partial<CreateTransportRequestData> & {
+  status?: TransportRequestStatus
+}

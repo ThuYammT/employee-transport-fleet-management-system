@@ -37,56 +37,60 @@ enum TransportRequestStatus {
   REJECTED
   CANCELLED
 }
+
 enum TripStatus {
   SCHEDULED
   IN_PROGRESS
   COMPLETED
   CANCELLED
 }
+
 enum MaintenanceStatus {
   PENDING
   IN_PROGRESS
   COMPLETED
 }
+
 enum VehicleIssueStatus {
   REPORTED
   IN_PROGRESS
   RESOLVED
 }
-model User {
-  id            Int        @id @default(autoincrement())
-  name          String
-  email         String     @unique
-  passwordHash  String
-  role          UserRole
-  phone         String?
-  status        UserStatus @default(ACTIVE)
 
-  driverProfile Driver?
+model User {
+  id           Int        @id @default(autoincrement())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         UserRole
+  phone        String?
+  status       UserStatus @default(ACTIVE)
+
+  driverProfile     Driver?
   transportRequests TransportRequest[]
 
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Vehicle {
-  id              Int           @id @default(autoincrement())
-  plateNumber     String        @unique
-  vehicleType     String
-  capacity        Int
-  status          VehicleStatus @default(AVAILABLE)
-  currentMileage  Int           @default(0)
+  id             Int           @id @default(autoincrement())
+  plateNumber    String        @unique
+  vehicleType    String
+  capacity       Int
+  status         VehicleStatus @default(AVAILABLE)
+  currentMileage Int           @default(0)
 
   assignedDrivers Driver[]
-  trips Trip[]
+  trips           Trip[]
 
   issueReports VehicleIssueReport[]
 
   fuelLogs FuelLog[]
 
   maintenanceLogs MaintenanceLog[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model Driver {
@@ -96,15 +100,15 @@ model Driver {
   availabilityStatus DriverAvailabilityStatus @default(AVAILABLE)
   assignedVehicleId  Int?
 
-  user               User                     @relation(fields: [userId], references: [id])
-  assignedVehicle    Vehicle?                 @relation(fields: [assignedVehicleId], references: [id])
-  trips Trip[]
-  fuelLogs FuelLog[]
+  user            User      @relation(fields: [userId], references: [id])
+  assignedVehicle Vehicle?  @relation(fields: [assignedVehicleId], references: [id])
+  trips           Trip[]
+  fuelLogs        FuelLog[]
 
   issueReports VehicleIssueReport[]
 
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model TransportRequest {
@@ -117,24 +121,34 @@ model TransportRequest {
   purpose        String
   status         TransportRequestStatus @default(PENDING)
 
-  employee       User                   @relation(fields: [employeeId], references: [id])
-  trip Trip?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  pickupLatitude  Float?
+  pickupLongitude Float?
+
+  destinationLatitude  Float?
+  destinationLongitude Float?
+
+  estimatedDistanceKm      Float?
+  estimatedDurationMinutes Int?
+
+  employee User  @relation(fields: [employeeId], references: [id])
+  trip     Trip?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Trip {
   id        Int        @id @default(autoincrement())
-  requestId Int       @unique
+  requestId Int        @unique
   driverId  Int
   vehicleId Int
   startTime DateTime?
   endTime   DateTime?
   status    TripStatus @default(SCHEDULED)
 
-  request   TransportRequest @relation(fields: [requestId], references: [id])
-  driver    Driver           @relation(fields: [driverId], references: [id])
-  vehicle   Vehicle          @relation(fields: [vehicleId], references: [id])
+  request  TransportRequest @relation(fields: [requestId], references: [id])
+  driver   Driver           @relation(fields: [driverId], references: [id])
+  vehicle  Vehicle          @relation(fields: [vehicleId], references: [id])
   fuelLogs FuelLog[]
 
   createdAt DateTime @default(now())
@@ -152,13 +166,14 @@ model FuelLog {
   mileage     Int
   fuelStation String?
 
-  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
-  driver      Driver   @relation(fields: [driverId], references: [id])
-  trip        Trip?    @relation(fields: [tripId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+  driver  Driver  @relation(fields: [driverId], references: [id])
+  trip    Trip?   @relation(fields: [tripId], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
+
 model MaintenanceLog {
   id              Int               @id @default(autoincrement())
   vehicleId       Int
@@ -168,11 +183,12 @@ model MaintenanceLog {
   nextServiceDate DateTime?
   status          MaintenanceStatus @default(PENDING)
 
-  vehicle         Vehicle           @relation(fields: [vehicleId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
 
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
+
 model VehicleIssueReport {
   id          Int                @id @default(autoincrement())
   vehicleId   Int
@@ -183,6 +199,6 @@ model VehicleIssueReport {
   reportedAt  DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
-  vehicle     Vehicle            @relation(fields: [vehicleId], references: [id])
-  driver      Driver             @relation(fields: [driverId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+  driver  Driver  @relation(fields: [driverId], references: [id])
 }
