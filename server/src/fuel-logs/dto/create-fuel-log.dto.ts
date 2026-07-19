@@ -10,13 +10,16 @@ import {
 
 export class CreateFuelLogDto {
   @IsInt()
+  @Min(1)
   vehicleId: number
 
   @IsInt()
+  @Min(1)
   driverId: number
 
   @IsOptional()
   @IsInt()
+  @Min(1)
   tripId?: number
 
   @IsDateString()

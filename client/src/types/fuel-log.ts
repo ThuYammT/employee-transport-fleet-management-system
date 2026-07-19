@@ -1,4 +1,5 @@
 import type { Driver } from './driver'
+import type { Trip } from './trip'
 import type { Vehicle } from './vehicle'
 
 export type FuelLog = {
@@ -6,13 +7,18 @@ export type FuelLog = {
   vehicleId: number
   driverId: number
   tripId?: number | null
+
   fuelDate: string
   liters: number
   cost: number
   mileage: number
+
   fuelStation?: string | null
+
   vehicle?: Vehicle
   driver?: Driver
+  trip?: Trip | null
+
   createdAt: string
   updatedAt: string
 }
@@ -21,11 +27,18 @@ export type CreateFuelLogData = {
   vehicleId: number
   driverId: number
   tripId?: number
+
   fuelDate: string
   liters: number
   cost: number
   mileage: number
+
   fuelStation?: string
 }
 
-export type UpdateFuelLogData = Partial<CreateFuelLogData>
+export type UpdateFuelLogData = {
+  fuelDate?: string
+  liters?: number
+  cost?: number
+  fuelStation?: string
+}

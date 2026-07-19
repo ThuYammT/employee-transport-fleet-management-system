@@ -3,292 +3,557 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+import {
+  Prisma,
+  TripStatus,
+  UserStatus,
+} from '@prisma/client'
+
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateFuelLogDto } from './dto/create-fuel-log.dto'
 import { UpdateFuelLogDto } from './dto/update-fuel-log.dto'
 
+const fuelLogInclude = {
+  vehicle: true,
+
+  driver: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          status: true,
+        },
+      },
+
+      assignedVehicle: {
+        select: {
+          id: true,
+          plateNumber: true,
+          vehicleType: true,
+          status: true,
+          currentMileage: true,
+        },
+      },
+    },
+  },
+
+  trip: {
+    include: {
+      request: {
+        select: {
+          id: true,
+          pickupLocation: true,
+          destination: true,
+          requestDate: true,
+          requestTime: true,
+          purpose: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.FuelLogInclude
+
 @Injectable()
 export class FuelLogsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
 
   findAll() {
     return this.prisma.fuelLog.findMany({
-      include: {
-        vehicle: true,
-        driver: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-                phone: true,
-              },
-            },
-          },
+      include: fuelLogInclude,
+
+      orderBy: [
+        {
+          fuelDate: 'desc',
         },
-        trip: true,
-      },
+        {
+          createdAt: 'desc',
+        },
+      ],
     })
   }
 
   async findOne(id: number) {
-    const fuelLog = await this.prisma.fuelLog.findUnique({
-      where: { id },
-      include: {
-        vehicle: true,
-        driver: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-                phone: true,
-              },
-            },
-          },
+    const fuelLog =
+      await this.prisma.fuelLog.findUnique({
+        where: {
+          id,
         },
-        trip: true,
-      },
-    })
+
+        include: fuelLogInclude,
+      })
 
     if (!fuelLog) {
-      throw new NotFoundException(`Fuel Log with ID ${id} not found`)
+      throw new NotFoundException(
+        `Fuel log with ID ${id} was not found`,
+      )
     }
 
     return fuelLog
   }
 
-  async create(createFuelLogDto: CreateFuelLogDto) {
-    const vehicle = await this.prisma.vehicle.findUnique({
-      where: { id: createFuelLogDto.vehicleId },
-    })
+  async findByDriverId(
+    driverId: number,
+  ) {
+    await this.ensureDriverExists(driverId)
 
-    if (!vehicle) {
-      throw new NotFoundException(
-        `Vehicle with ID ${createFuelLogDto.vehicleId} not found`,
-      )
-    }
+    return this.prisma.fuelLog.findMany({
+      where: {
+        driverId,
+      },
 
-    const driver = await this.prisma.driver.findUnique({
-      where: { id: createFuelLogDto.driverId },
-    })
+      include: fuelLogInclude,
 
-    if (!driver) {
-      throw new NotFoundException(
-        `Driver with ID ${createFuelLogDto.driverId} not found`,
-      )
-    }
-
-    if (createFuelLogDto.tripId) {
-      const trip = await this.prisma.trip.findUnique({
-        where: { id: createFuelLogDto.tripId },
-      })
-
-      if (!trip) {
-        throw new NotFoundException(
-          `Trip with ID ${createFuelLogDto.tripId} not found`,
-        )
-      }
-
-      if (trip.vehicleId !== createFuelLogDto.vehicleId) {
-        throw new BadRequestException(
-          `Trip does not belong to Vehicle ID ${createFuelLogDto.vehicleId}`,
-        )
-      }
-
-      if (trip.driverId !== createFuelLogDto.driverId) {
-        throw new BadRequestException(
-          `Trip does not belong to Driver ID ${createFuelLogDto.driverId}`,
-        )
-      }
-    }
-
-    if (createFuelLogDto.mileage < vehicle.currentMileage) {
-      throw new BadRequestException(
-        `Mileage cannot be lower than current vehicle mileage`,
-      )
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      const fuelLog = await tx.fuelLog.create({
-        data: {
-          vehicle: {
-            connect: { id: createFuelLogDto.vehicleId },
-          },
-          driver: {
-            connect: { id: createFuelLogDto.driverId },
-          },
-          trip: createFuelLogDto.tripId
-            ? {
-                connect: { id: createFuelLogDto.tripId },
-              }
-            : undefined,
-          fuelDate: new Date(createFuelLogDto.fuelDate),
-          liters: createFuelLogDto.liters,
-          cost: createFuelLogDto.cost,
-          mileage: createFuelLogDto.mileage,
-          fuelStation: createFuelLogDto.fuelStation,
+      orderBy: [
+        {
+          fuelDate: 'desc',
         },
-        include: {
-          vehicle: true,
-          driver: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  role: true,
-                  phone: true,
-                },
-              },
-            },
-          },
-          trip: true,
+        {
+          createdAt: 'desc',
         },
-      })
-
-      await tx.vehicle.update({
-        where: { id: createFuelLogDto.vehicleId },
-        data: {
-          currentMileage: createFuelLogDto.mileage,
-        },
-      })
-
-      return tx.fuelLog.findUnique({
-        where: { id: fuelLog.id },
-        include: {
-          vehicle: true,
-          driver: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  role: true,
-                  phone: true,
-                },
-              },
-            },
-          },
-          trip: true,
-        },
-      })
+      ],
     })
   }
 
-  async update(id: number, updateFuelLogDto: UpdateFuelLogDto) {
-    await this.findOne(id)
+  async findByVehicleId(
+    vehicleId: number,
+  ) {
+    await this.ensureVehicleExists(vehicleId)
 
-    if (updateFuelLogDto.vehicleId) {
-      const vehicle = await this.prisma.vehicle.findUnique({
-        where: { id: updateFuelLogDto.vehicleId },
-      })
-
-      if (!vehicle) {
-        throw new NotFoundException(
-          `Vehicle with ID ${updateFuelLogDto.vehicleId} not found`,
-        )
-      }
-    }
-
-    if (updateFuelLogDto.driverId) {
-      const driver = await this.prisma.driver.findUnique({
-        where: { id: updateFuelLogDto.driverId },
-      })
-
-      if (!driver) {
-        throw new NotFoundException(
-          `Driver with ID ${updateFuelLogDto.driverId} not found`,
-        )
-      }
-    }
-
-    if (updateFuelLogDto.tripId) {
-      const trip = await this.prisma.trip.findUnique({
-        where: { id: updateFuelLogDto.tripId },
-      })
-
-      if (!trip) {
-        throw new NotFoundException(
-          `Trip with ID ${updateFuelLogDto.tripId} not found`,
-        )
-      }
-    }
-
-    return this.prisma.fuelLog.update({
-      where: { id },
-      data: {
-        vehicle: updateFuelLogDto.vehicleId
-          ? {
-              connect: { id: updateFuelLogDto.vehicleId },
-            }
-          : undefined,
-        driver: updateFuelLogDto.driverId
-          ? {
-              connect: { id: updateFuelLogDto.driverId },
-            }
-          : undefined,
-        trip: updateFuelLogDto.tripId
-          ? {
-              connect: { id: updateFuelLogDto.tripId },
-            }
-          : undefined,
-        fuelDate: updateFuelLogDto.fuelDate
-          ? new Date(updateFuelLogDto.fuelDate)
-          : undefined,
-        liters: updateFuelLogDto.liters,
-        cost: updateFuelLogDto.cost,
-        mileage: updateFuelLogDto.mileage,
-        fuelStation: updateFuelLogDto.fuelStation,
+    return this.prisma.fuelLog.findMany({
+      where: {
+        vehicleId,
       },
-      include: {
-        vehicle: true,
-        driver: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-                phone: true,
-              },
+
+      include: fuelLogInclude,
+
+      orderBy: [
+        {
+          fuelDate: 'desc',
+        },
+        {
+          createdAt: 'desc',
+        },
+      ],
+    })
+  }
+
+  async findByTripId(tripId: number) {
+    const trip =
+      await this.prisma.trip.findUnique({
+        where: {
+          id: tripId,
+        },
+
+        select: {
+          id: true,
+        },
+      })
+
+    if (!trip) {
+      throw new NotFoundException(
+        `Trip with ID ${tripId} was not found`,
+      )
+    }
+
+    return this.prisma.fuelLog.findMany({
+      where: {
+        tripId,
+      },
+
+      include: fuelLogInclude,
+
+      orderBy: [
+        {
+          fuelDate: 'desc',
+        },
+        {
+          createdAt: 'desc',
+        },
+      ],
+    })
+  }
+
+  async create(
+    createFuelLogDto: CreateFuelLogDto,
+  ) {
+    const driver =
+      await this.prisma.driver.findUnique({
+        where: {
+          id: createFuelLogDto.driverId,
+        },
+
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              status: true,
             },
           },
         },
-        trip: true,
+      })
+
+    if (!driver) {
+      throw new NotFoundException(
+        `Driver with ID ${createFuelLogDto.driverId} was not found`,
+      )
+    }
+
+    if (driver.user.role !== 'DRIVER') {
+      throw new BadRequestException(
+        'The selected account is not a driver',
+      )
+    }
+
+    if (
+      driver.user.status !==
+      UserStatus.ACTIVE
+    ) {
+      throw new BadRequestException(
+        'An inactive driver cannot create a fuel log',
+      )
+    }
+
+    const vehicle =
+      await this.prisma.vehicle.findUnique({
+        where: {
+          id: createFuelLogDto.vehicleId,
+        },
+      })
+
+    if (!vehicle) {
+      throw new NotFoundException(
+        `Vehicle with ID ${createFuelLogDto.vehicleId} was not found`,
+      )
+    }
+
+    let connectedTrip:
+      | {
+          id: number
+          driverId: number
+          vehicleId: number
+          status: TripStatus
+        }
+      | null = null
+
+    if (createFuelLogDto.tripId) {
+      connectedTrip =
+        await this.prisma.trip.findUnique({
+          where: {
+            id: createFuelLogDto.tripId,
+          },
+
+          select: {
+            id: true,
+            driverId: true,
+            vehicleId: true,
+            status: true,
+          },
+        })
+
+      if (!connectedTrip) {
+        throw new NotFoundException(
+          `Trip with ID ${createFuelLogDto.tripId} was not found`,
+        )
+      }
+
+      if (
+        connectedTrip.driverId !==
+        createFuelLogDto.driverId
+      ) {
+        throw new BadRequestException(
+          'The selected trip does not belong to this driver',
+        )
+      }
+
+      if (
+        connectedTrip.vehicleId !==
+        createFuelLogDto.vehicleId
+      ) {
+        throw new BadRequestException(
+          'The selected trip does not use this vehicle',
+        )
+      }
+
+      if (
+        connectedTrip.status ===
+        TripStatus.CANCELLED
+      ) {
+        throw new BadRequestException(
+          'A fuel log cannot be added to a cancelled trip',
+        )
+      }
+    }
+
+    const hasPermanentAssignment =
+      driver.assignedVehicleId ===
+      createFuelLogDto.vehicleId
+
+    const activeVehicleTrip =
+      await this.prisma.trip.findFirst({
+        where: {
+          driverId:
+            createFuelLogDto.driverId,
+
+          vehicleId:
+            createFuelLogDto.vehicleId,
+
+          status: {
+            in: [
+              TripStatus.SCHEDULED,
+              TripStatus.IN_PROGRESS,
+            ],
+          },
+        },
+
+        select: {
+          id: true,
+        },
+      })
+
+    const isAllowedVehicle =
+      hasPermanentAssignment ||
+      Boolean(connectedTrip) ||
+      Boolean(activeVehicleTrip)
+
+    if (!isAllowedVehicle) {
+      throw new BadRequestException(
+        'This vehicle is not assigned to the selected driver',
+      )
+    }
+
+    if (
+      createFuelLogDto.mileage <
+      vehicle.currentMileage
+    ) {
+      throw new BadRequestException(
+        `Mileage cannot be lower than the vehicle's current mileage of ${vehicle.currentMileage} km`,
+      )
+    }
+
+    const fuelDate = new Date(
+      createFuelLogDto.fuelDate,
+    )
+
+    if (
+      Number.isNaN(fuelDate.getTime())
+    ) {
+      throw new BadRequestException(
+        'Fuel date is invalid',
+      )
+    }
+
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const currentVehicle =
+          await transaction.vehicle.findUnique({
+            where: {
+              id: createFuelLogDto.vehicleId,
+            },
+
+            select: {
+              currentMileage: true,
+            },
+          })
+
+        if (!currentVehicle) {
+          throw new NotFoundException(
+            'The selected vehicle no longer exists',
+          )
+        }
+
+        if (
+          createFuelLogDto.mileage <
+          currentVehicle.currentMileage
+        ) {
+          throw new BadRequestException(
+            `Mileage cannot be lower than the vehicle's current mileage of ${currentVehicle.currentMileage} km`,
+          )
+        }
+
+        const fuelLog =
+          await transaction.fuelLog.create({
+            data: {
+              vehicleId:
+                createFuelLogDto.vehicleId,
+
+              driverId:
+                createFuelLogDto.driverId,
+
+              tripId:
+                createFuelLogDto.tripId,
+
+              fuelDate,
+
+              liters:
+                createFuelLogDto.liters,
+
+              cost: createFuelLogDto.cost,
+
+              mileage:
+                createFuelLogDto.mileage,
+
+              fuelStation:
+                createFuelLogDto
+                  .fuelStation
+                  ?.trim() || null,
+            },
+
+            include: fuelLogInclude,
+          })
+
+        await transaction.vehicle.update({
+          where: {
+            id: createFuelLogDto.vehicleId,
+          },
+
+          data: {
+            currentMileage:
+              createFuelLogDto.mileage,
+          },
+        })
+
+        return fuelLog
       },
+    )
+  }
+
+  async update(
+    id: number,
+    updateFuelLogDto: UpdateFuelLogDto,
+  ) {
+    await this.findOne(id)
+
+    const fuelDate =
+      updateFuelLogDto.fuelDate !==
+      undefined
+        ? new Date(
+            updateFuelLogDto.fuelDate,
+          )
+        : undefined
+
+    if (
+      fuelDate &&
+      Number.isNaN(fuelDate.getTime())
+    ) {
+      throw new BadRequestException(
+        'Fuel date is invalid',
+      )
+    }
+
+    return this.prisma.fuelLog.update({
+      where: {
+        id,
+      },
+
+      data: {
+        fuelDate,
+
+        liters:
+          updateFuelLogDto.liters,
+
+        cost: updateFuelLogDto.cost,
+
+        fuelStation:
+          updateFuelLogDto
+            .fuelStation !== undefined
+            ? updateFuelLogDto
+                .fuelStation.trim() || null
+            : undefined,
+      },
+
+      include: fuelLogInclude,
     })
   }
 
   async remove(id: number) {
-    await this.findOne(id)
+    const fuelLog = await this.findOne(id)
 
-    return this.prisma.fuelLog.delete({
-      where: { id },
-      include: {
-        vehicle: true,
-        driver: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-                phone: true,
+    const newerLog =
+      await this.prisma.fuelLog.findFirst({
+        where: {
+          vehicleId: fuelLog.vehicleId,
+
+          OR: [
+            {
+              mileage: {
+                gt: fuelLog.mileage,
               },
             },
-          },
+            {
+              fuelDate: {
+                gt: fuelLog.fuelDate,
+              },
+            },
+          ],
         },
-        trip: true,
+
+        select: {
+          id: true,
+        },
+      })
+
+    if (newerLog) {
+      throw new BadRequestException(
+        'This fuel log cannot be deleted because newer fuel records exist for the vehicle',
+      )
+    }
+
+    return this.prisma.fuelLog.delete({
+      where: {
+        id,
       },
+
+      include: fuelLogInclude,
     })
+  }
+
+  private async ensureDriverExists(
+    driverId: number,
+  ) {
+    const driver =
+      await this.prisma.driver.findUnique({
+        where: {
+          id: driverId,
+        },
+
+        select: {
+          id: true,
+        },
+      })
+
+    if (!driver) {
+      throw new NotFoundException(
+        `Driver with ID ${driverId} was not found`,
+      )
+    }
+  }
+
+  private async ensureVehicleExists(
+    vehicleId: number,
+  ) {
+    const vehicle =
+      await this.prisma.vehicle.findUnique({
+        where: {
+          id: vehicleId,
+        },
+
+        select: {
+          id: true,
+        },
+      })
+
+    if (!vehicle) {
+      throw new NotFoundException(
+        `Vehicle with ID ${vehicleId} was not found`,
+      )
+    }
   }
 }

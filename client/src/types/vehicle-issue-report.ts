@@ -1,18 +1,26 @@
+import type { Driver } from './driver'
+import type { Vehicle } from './vehicle'
+
 export type VehicleIssueStatus =
-  | 'OPEN'
-  | 'IN_REVIEW'
+  | 'REPORTED'
+  | 'IN_PROGRESS'
   | 'RESOLVED'
-  | 'CLOSED'
 
 export type VehicleIssueReport = {
   id: number
   vehicleId: number
   driverId: number
+
   issueTitle: string
   description: string
   status: VehicleIssueStatus
-  createdAt: string
-  updatedAt: string
+
+  vehicle?: Vehicle
+  driver?: Driver
+
+  reportedAt?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type CreateVehicleIssueReportData = {
@@ -22,7 +30,8 @@ export type CreateVehicleIssueReportData = {
   description: string
 }
 
-export type UpdateVehicleIssueReportData =
-  Partial<CreateVehicleIssueReportData> & {
-    status?: VehicleIssueStatus
-  }
+export type UpdateVehicleIssueReportData = {
+  issueTitle?: string
+  description?: string
+  status?: VehicleIssueStatus
+}

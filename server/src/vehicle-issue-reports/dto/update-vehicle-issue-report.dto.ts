@@ -1,11 +1,30 @@
-import { PartialType } from '@nestjs/mapped-types'
-import { IsEnum, IsOptional } from 'class-validator'
-import { VehicleIssueStatus } from '@prisma/client'
-import { CreateVehicleIssueReportDto } from './create-vehicle-issue-report.dto'
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator'
+import {
+  VehicleIssueStatus,
+} from '@prisma/client'
 
-export class UpdateVehicleIssueReportDto extends PartialType(
-  CreateVehicleIssueReportDto,
-) {
+export class UpdateVehicleIssueReportDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  @MaxLength(150)
+  issueTitle?: string
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(5)
+  @MaxLength(2000)
+  description?: string
+
   @IsOptional()
   @IsEnum(VehicleIssueStatus)
   status?: VehicleIssueStatus

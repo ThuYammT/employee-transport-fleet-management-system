@@ -1,4 +1,29 @@
-import { PartialType } from '@nestjs/mapped-types'
-import { CreateFuelLogDto } from './create-fuel-log.dto'
+import {
+  IsDateString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator'
 
-export class UpdateFuelLogDto extends PartialType(CreateFuelLogDto) {}
+export class UpdateFuelLogDto {
+  @IsOptional()
+  @IsDateString()
+  fuelDate?: string
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.1)
+  liters?: number
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cost?: number
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  fuelStation?: string
+}
