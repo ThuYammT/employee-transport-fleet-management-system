@@ -1,12 +1,32 @@
-import { PartialType } from '@nestjs/mapped-types'
-import { IsEnum, IsOptional } from 'class-validator'
-import { MaintenanceStatus } from '@prisma/client'
-import { CreateMaintenanceLogDto } from './create-maintenance-log.dto'
+import {
+  IsDateString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator'
 
-export class UpdateMaintenanceLogDto extends PartialType(
-  CreateMaintenanceLogDto,
-) {
+export class UpdateMaintenanceLogDto {
   @IsOptional()
-  @IsEnum(MaintenanceStatus)
-  status?: MaintenanceStatus
+  @IsDateString()
+  serviceDate?: string
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  @MaxLength(2000)
+  description?: string
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cost?: number
+
+  @IsOptional()
+  @IsDateString()
+  nextServiceDate?: string | null
 }

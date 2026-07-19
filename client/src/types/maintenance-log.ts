@@ -8,12 +8,16 @@ export type MaintenanceStatus =
 export type MaintenanceLog = {
   id: number
   vehicleId: number
+
   serviceDate: string
   description: string
   cost: number
   nextServiceDate?: string | null
+
   status: MaintenanceStatus
+
   vehicle?: Vehicle
+
   createdAt: string
   updatedAt: string
 }
@@ -26,7 +30,9 @@ export type CreateMaintenanceLogData = {
   nextServiceDate?: string
 }
 
-export type UpdateMaintenanceLogData =
-  Partial<CreateMaintenanceLogData> & {
-    status?: MaintenanceStatus
-  }
+export type UpdateMaintenanceLogData = {
+  serviceDate?: string
+  description?: string
+  cost?: number
+  nextServiceDate?: string | null
+}
