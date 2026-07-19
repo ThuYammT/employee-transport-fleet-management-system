@@ -4,8 +4,9 @@ import {
   useMemo,
   useState,
 } from 'react'
-
+import RouteMap from '../../components/maps/RouteMap'
 import {
+  estimateRoute,
   getTransportRequests,
   updateTransportRequest,
 } from '../../services/transport-request.service'
@@ -27,6 +28,7 @@ import type {
 } from '../../types/driver'
 
 import type {
+  RouteEstimate,
   TransportRequest,
   TransportRequestStatus,
 } from '../../types/transport-request'
@@ -929,30 +931,159 @@ function RequestDetailsModal({
   onClose: () => void
   onAssign: () => void
 }) {
+  const [route, setRoute] =
+    useState<RouteEstimate | null>(null)
+
+  const [routeLoading, setRouteLoading] =
+    useState(false)
+
+  const [routeError, setRouteError] =
+    useState('')
+
+  useEffect(() => {
+    const hasCoordinates =
+      request.pickupLatitude != null &&
+      request.pickupLongitude != null &&
+      request.destinationLatitude != null &&
+      request.destinationLongitude != null
+
+    if (!hasCoordinates) {
+      setRoute(null)
+      setRouteError('')
+      return
+    }
+
+    const controller = new AbortController()
+
+    async function loadRoute() {
+      try {
+        setRouteLoading(true)
+        setRouteError('')
+
+        const routeData = await estimateRoute(
+          {
+            pickupLatitude:
+              request.pickupLatitude!,
+
+            pickupLongitude:
+              request.pickupLongitude!,
+
+            destinationLatitude:
+              request.destinationLatitude!,
+
+            destinationLongitude:
+              request.destinationLongitude!,
+          },
+          controller.signal,
+        )
+
+        setRoute(routeData)
+      } catch (error) {
+        if (
+          axios.isCancel(error) ||
+          controller.signal.aborted
+        ) {
+          return
+        }
+
+        console.error(error)
+        setRoute(null)
+
+        setRouteError(
+          getApiErrorMessage(
+            error,
+            'The route map could not be loaded.',
+          ),
+        )
+      } finally {
+        if (!controller.signal.aborted) {
+          setRouteLoading(false)
+        }
+      }
+    }
+
+    void loadRoute()
+
+    return () => {
+      controller.abort()
+    }
+  }, [
+    request.id,
+    request.pickupLatitude,
+    request.pickupLongitude,
+    request.destinationLatitude,
+    request.destinationLongitude,
+  ])
+
+  const pickupPosition:
+    | [number, number]
+    | null =
+    request.pickupLatitude != null &&
+    request.pickupLongitude != null
+      ? [
+          request.pickupLatitude,
+          request.pickupLongitude,
+        ]
+      : null
+
+  const destinationPosition:
+    | [number, number]
+    | null =
+    request.destinationLatitude != null &&
+    request.destinationLongitude != null
+      ? [
+          request.destinationLatitude,
+          request.destinationLongitude,
+        ]
+      : null
+
+  const distanceKm =
+    route?.estimatedDistanceKm ??
+    request.estimatedDistanceKm ??
+    null
+
+  const distanceMiles =
+    route?.estimatedDistanceMiles ??
+    (distanceKm != null
+      ? distanceKm * 0.621371
+      : null)
+
+  const durationMinutes =
+    route?.estimatedDurationMinutes ??
+    request.estimatedDurationMinutes ??
+    null
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-      <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b p-6">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between border-b border-slate-200 p-6">
           <div>
             <p className="text-sm text-slate-500">
               Transport Request
             </p>
 
-            <h2 className="text-2xl font-bold">
-              REQ-{request.id}
-            </h2>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <h2 className="text-2xl font-bold text-slate-900">
+                REQ-{request.id}
+              </h2>
+
+              <RequestStatusBadge
+                status={request.status}
+              />
+            </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="text-2xl text-slate-400"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close request details"
           >
             ×
           </button>
         </div>
 
-        <div className="space-y-6 p-6">
+        <div className="overflow-y-auto p-6">
           <div className="grid gap-5 md:grid-cols-2">
             <DetailItem
               label="Employee"
@@ -972,16 +1103,12 @@ function RequestDetailsModal({
 
             <DetailItem
               label="Pickup"
-              value={
-                request.pickupLocation
-              }
+              value={request.pickupLocation}
             />
 
             <DetailItem
               label="Destination"
-              value={
-                request.destination
-              }
+              value={request.destination}
             />
 
             <DetailItem
@@ -999,44 +1126,156 @@ function RequestDetailsModal({
             />
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-5">
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <RouteInformationCard
+              label="Distance"
+              value={
+                distanceKm != null
+                  ? `${distanceKm.toFixed(2)} km`
+                  : 'Not available'
+              }
+            />
+
+            <RouteInformationCard
+              label="Distance in miles"
+              value={
+                distanceMiles != null
+                  ? `${distanceMiles.toFixed(2)} mi`
+                  : 'Not available'
+              }
+            />
+
+            <RouteInformationCard
+              label="Estimated time"
+              value={
+                durationMinutes != null
+                  ? formatDuration(
+                      durationMinutes,
+                    )
+                  : 'Not available'
+              }
+            />
+          </div>
+
+          <div className="mt-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-slate-900">
+                Route Map
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-500">
+                The employee’s selected pickup,
+                destination and estimated driving route.
+              </p>
+            </div>
+
+            {routeLoading && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm font-medium text-blue-700">
+                Loading route map...
+              </div>
+            )}
+
+            {!routeLoading &&
+              pickupPosition &&
+              destinationPosition &&
+              route && (
+                <RouteMap
+                  pickup={pickupPosition}
+                  destination={
+                    destinationPosition
+                  }
+                  routeCoordinates={
+                    route.routeCoordinates
+                  }
+                />
+              )}
+
+            {!routeLoading &&
+              routeError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                  <p className="font-semibold text-amber-800">
+                    Route map unavailable
+                  </p>
+
+                  <p className="mt-1 text-sm text-amber-700">
+                    {routeError}
+                  </p>
+                </div>
+              )}
+
+            {!routeLoading &&
+              !routeError &&
+              (!pickupPosition ||
+                !destinationPosition) && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                  <p className="font-semibold text-slate-700">
+                    No map available
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    This request was created before
+                    location coordinates were added.
+                  </p>
+                </div>
+              )}
+          </div>
+
+          <div className="mt-6 rounded-xl bg-slate-50 p-5">
             <p className="text-sm font-semibold text-slate-500">
               Purpose
             </p>
 
-            <p className="mt-2">
+            <p className="mt-2 leading-7 text-slate-800">
               {request.purpose}
             </p>
           </div>
 
           {request.trip && (
-            <div className="rounded-xl border border-green-200 bg-green-50 p-5">
-              <h3 className="font-bold text-green-900">
-                Trip assigned
-              </h3>
+            <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-bold text-green-900">
+                  Trip assigned
+                </h3>
 
-              <p className="mt-2 text-sm text-green-800">
-                Driver:{' '}
-                {request.trip.driver?.user
-                  ?.name ??
-                  `Driver ${request.trip.driverId}`}
-              </p>
+                <TripStatusBadge
+                  status={request.trip.status}
+                />
+              </div>
 
-              <p className="mt-1 text-sm text-green-800">
-                Vehicle:{' '}
-                {request.trip.vehicle
-                  ?.plateNumber ??
-                  `Vehicle ${request.trip.vehicleId}`}
-              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+                    Driver
+                  </p>
+
+                  <p className="mt-1 font-semibold text-green-950">
+                    {request.trip.driver?.user
+                      ?.name ??
+                      `Driver ${request.trip.driverId}`}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+                    Vehicle
+                  </p>
+
+                  <p className="mt-1 font-semibold text-green-950">
+                    {request.trip.vehicle
+                      ?.plateNumber ??
+                      `Vehicle ${request.trip.vehicleId}`}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        <div className="flex justify-end gap-3 border-t p-6">
+        <div className="flex shrink-0 justify-end gap-3 border-t border-slate-200 bg-white p-6">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-slate-300 px-5 py-3 font-semibold"
+            className="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Close
           </button>
@@ -1047,7 +1286,7 @@ function RequestDetailsModal({
               <button
                 type="button"
                 onClick={onAssign}
-                className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white"
+                className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
               >
                 Assign Driver and Vehicle
               </button>
@@ -1057,7 +1296,25 @@ function RequestDetailsModal({
     </div>
   )
 }
+function RouteInformationCard({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+      <p className="text-sm font-medium text-blue-700">
+        {label}
+      </p>
 
+      <p className="mt-2 text-2xl font-bold text-blue-950">
+        {value}
+      </p>
+    </div>
+  )
+}
 function StatCard({
   title,
   value,
@@ -1154,7 +1411,26 @@ function TripStatusBadge({
     </span>
   )
 }
+function formatDuration(
+  totalMinutes: number,
+) {
+  const hours = Math.floor(
+    totalMinutes / 60,
+  )
 
+  const minutes =
+    totalMinutes % 60
+
+  if (hours === 0) {
+    return `${minutes} min`
+  }
+
+  if (minutes === 0) {
+    return `${hours} hr`
+  }
+
+  return `${hours} hr ${minutes} min`
+}
 function formatDate(value: string) {
   const date = new Date(value)
 
