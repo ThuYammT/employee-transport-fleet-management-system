@@ -10,7 +10,7 @@ import {
   IsString,
   MaxLength,
   Matches,
-} from '@nestjs/class-validator'
+} from 'class-validator'
 
 export class CreateTransportRequestDto {
   @IsInt()
