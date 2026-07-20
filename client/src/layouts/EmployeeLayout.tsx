@@ -42,21 +42,22 @@ function EmployeeLayout() {
     }
 
     clearCurrentUser()
+
     navigate('/login', {
       replace: true,
     })
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-100 text-slate-900">
-      <aside className="flex w-64 shrink-0 flex-col bg-slate-950 p-6 text-white">
-        <div className="mb-10 flex items-center gap-3">
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-slate-950 px-5 py-5 text-white">
+        <div className="mb-6 flex shrink-0 items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 font-bold">
             FM
           </div>
 
-          <div>
-            <h1 className="text-sm font-bold">
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-bold">
               Fleet Management
             </h1>
 
@@ -66,21 +67,21 @@ function EmployeeLayout() {
           </div>
         </div>
 
-        <p className="mb-3 text-xs uppercase tracking-wider text-slate-500">
+        <p className="mb-2 shrink-0 text-xs uppercase tracking-wide text-slate-500">
           Employee Menu
         </p>
 
-        <nav className="space-y-2">
+        <nav className="space-y-1.5">
           {menuItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.path === '/employee'}
               className={({ isActive }) =>
-                `block rounded-xl px-4 py-3 transition ${
+                `block rounded-xl px-4 py-2.5 text-sm font-medium transition ${
                   isActive
                     ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:bg-slate-900 hover:text-white'
+                    : 'text-slate-300 hover:bg-slate-900 hover:text-white'
                 }`
               }
             >
@@ -89,28 +90,36 @@ function EmployeeLayout() {
           ))}
         </nav>
 
-        <div className="mt-auto border-t border-slate-800 pt-5">
-          <div className="mb-4 rounded-xl bg-slate-900 p-4">
-            <p className="truncate text-sm font-semibold text-white">
-              {currentUser?.name ?? 'Employee'}
-            </p>
+        <div className="mt-auto shrink-0 border-t border-slate-800 pt-4">
+          <div className="mb-3 rounded-xl bg-slate-900 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">
+                  {currentUser?.name ?? 'Employee'}
+                </p>
 
-            <p className="mt-1 truncate text-xs text-slate-400">
-              {currentUser?.email ?? ''}
-            </p>
+                <p className="mt-0.5 truncate text-xs text-slate-400">
+                  {currentUser?.email ?? ''}
+                </p>
+              </div>
+
+              <span className="shrink-0 rounded-full bg-blue-600/20 px-2.5 py-1 text-[11px] font-semibold text-blue-300">
+                {currentUser?.role ?? 'EMPLOYEE'}
+              </span>
+            </div>
           </div>
 
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full rounded-xl border border-slate-700 px-4 py-3 text-left text-sm font-semibold text-slate-300 transition hover:border-red-500 hover:bg-red-500/10 hover:text-red-300"
+            className="w-full rounded-xl border border-slate-700 px-4 py-2.5 text-left text-sm font-semibold text-slate-300 transition hover:border-red-500 hover:bg-red-500/10 hover:text-red-300"
           >
             Sign out
           </button>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">
+      <main className="min-h-screen min-w-0 pl-64">
         <Outlet />
       </main>
     </div>

@@ -50,6 +50,7 @@ const emptyAssignmentForm: AssignmentForm = {
   driverId: '',
   vehicleId: '',
 }
+const ITEMS_PER_PAGE = 10
 
 function TransportRequestsView() {
   const [requests, setRequests] = useState<
@@ -69,6 +70,9 @@ function TransportRequestsView() {
 
   const [statusFilter, setStatusFilter] =
     useState<StatusFilter>('ALL')
+
+  const [currentPage, setCurrentPage] =
+    useState(1)
 
   const [loading, setLoading] =
     useState(true)
@@ -113,6 +117,10 @@ function TransportRequestsView() {
   useEffect(() => {
     void loadPageData()
   }, [])
+
+  useEffect(() => {
+  setCurrentPage(1)
+  }, [searchTerm, statusFilter])
 
   async function loadPageData() {
     try {
@@ -322,6 +330,37 @@ function TransportRequestsView() {
     searchTerm,
     statusFilter,
   ])
+  const totalPages = Math.max(
+  1,
+  Math.ceil(
+    filteredRequests.length /
+      ITEMS_PER_PAGE,
+  ),
+)
+
+const paginatedRequests = useMemo(() => {
+  const startIndex =
+    (currentPage - 1) *
+    ITEMS_PER_PAGE
+
+  const endIndex =
+    startIndex +
+    ITEMS_PER_PAGE
+
+  return filteredRequests.slice(
+    startIndex,
+    endIndex,
+  )
+}, [
+  currentPage,
+  filteredRequests,
+])
+
+useEffect(() => {
+  if (currentPage > totalPages) {
+    setCurrentPage(totalPages)
+  }
+}, [currentPage, totalPages])
 
   const filters: StatusFilter[] = [
     'ALL',
@@ -471,223 +510,232 @@ function TransportRequestsView() {
             )}
 
           {!loading &&
-            filteredRequests.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1300px] text-left text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="px-6 py-4">
-                        Request
-                      </th>
+  filteredRequests.length > 0 && (
+    <div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={filteredRequests.length}
+        itemsPerPage={ITEMS_PER_PAGE}
+        onPageChange={setCurrentPage}
+      />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1300px] text-left text-sm">
+          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+            <tr>
+              <th className="px-6 py-4">
+                Request
+              </th>
 
-                      <th className="py-4 pr-6">
-                        Employee
-                      </th>
+              <th className="py-4 pr-6">
+                Employee
+              </th>
 
-                      <th className="py-4 pr-6">
-                        Route
-                      </th>
+              <th className="py-4 pr-6">
+                Route
+              </th>
 
-                      <th className="py-4 pr-6">
-                        Schedule
-                      </th>
+              <th className="py-4 pr-6">
+                Schedule
+              </th>
 
-                      <th className="py-4 pr-6">
-                        Status
-                      </th>
+              <th className="py-4 pr-6">
+                Status
+              </th>
 
-                      <th className="py-4 pr-6">
-                        Assignment
-                      </th>
+              <th className="py-4 pr-6">
+                Assignment
+              </th>
 
-                      <th className="py-4 pr-6">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
+              <th className="py-4 pr-6">
+                Actions
+              </th>
+            </tr>
+          </thead>
 
-                  <tbody>
-                    {filteredRequests.map(
-                      (request) => {
-                        const isProcessing =
-                          actionLoadingId ===
-                          request.id
+          <tbody>
+            {paginatedRequests.map(
+              (request) => {
+                const isProcessing =
+                  actionLoadingId ===
+                  request.id
 
-                        return (
-                          <tr
-                            key={request.id}
-                            className="border-b border-slate-100 hover:bg-slate-50"
-                          >
-                            <td className="px-6 py-4 font-semibold">
-                              REQ-{request.id}
-                            </td>
+                return (
+                  <tr
+                    key={request.id}
+                    className="border-b border-slate-100 hover:bg-slate-50"
+                  >
+                    <td className="px-6 py-4 font-semibold">
+                      REQ-{request.id}
+                    </td>
 
-                            <td className="py-4 pr-6">
-                              <p className="font-semibold">
-                                {request.employee
-                                  ?.name ??
-                                  `Employee ${request.employeeId}`}
-                              </p>
+                    <td className="py-4 pr-6">
+                      <p className="font-semibold">
+                        {request.employee
+                          ?.name ??
+                          `Employee ${request.employeeId}`}
+                      </p>
 
-                              <p className="text-xs text-slate-500">
-                                {request.employee
-                                  ?.email ??
-                                  'Unavailable'}
-                              </p>
-                            </td>
+                      <p className="text-xs text-slate-500">
+                        {request.employee
+                          ?.email ??
+                          'Unavailable'}
+                      </p>
+                    </td>
 
-                            <td className="py-4 pr-6">
-                              <p className="font-medium">
-                                {
-                                  request.pickupLocation
-                                }
-                              </p>
+                    <td className="py-4 pr-6">
+                      <p className="font-medium">
+                        {
+                          request.pickupLocation
+                        }
+                      </p>
 
-                              <p className="text-xs text-slate-500">
-                                to{' '}
-                                {
-                                  request.destination
-                                }
-                              </p>
-                            </td>
+                      <p className="text-xs text-slate-500">
+                        to{' '}
+                        {
+                          request.destination
+                        }
+                      </p>
+                    </td>
 
-                            <td className="py-4 pr-6">
-                              <p className="font-medium">
-                                {formatDate(
-                                  request.requestDate,
-                                )}
-                              </p>
+                    <td className="py-4 pr-6">
+                      <p className="font-medium">
+                        {formatDate(
+                          request.requestDate,
+                        )}
+                      </p>
 
-                              <p className="text-xs text-slate-500">
-                                {formatTime(
-                                  request.requestTime,
-                                )}
-                              </p>
-                            </td>
+                      <p className="text-xs text-slate-500">
+                        {formatTime(
+                          request.requestTime,
+                        )}
+                      </p>
+                    </td>
 
-                            <td className="py-4 pr-6">
-                              <RequestStatusBadge
-                                status={
-                                  request.status
-                                }
-                              />
-                            </td>
+                    <td className="py-4 pr-6">
+                      <RequestStatusBadge
+                        status={
+                          request.status
+                        }
+                      />
+                    </td>
 
-                            <td className="py-4 pr-6">
-                              {request.trip ? (
-                                <div>
-                                  <p className="font-semibold">
-                                    {request.trip
-                                      .driver?.user
-                                      ?.name ??
-                                      `Driver ${request.trip.driverId}`}
-                                  </p>
+                    <td className="py-4 pr-6">
+                      {request.trip ? (
+                        <div>
+                          <p className="font-semibold">
+                            {request.trip
+                              .driver?.user
+                              ?.name ??
+                              `Driver ${request.trip.driverId}`}
+                          </p>
 
-                                  <p className="text-xs text-slate-500">
-                                    {request.trip
-                                      .vehicle
-                                      ?.plateNumber ??
-                                      `Vehicle ${request.trip.vehicleId}`}
-                                  </p>
+                          <p className="text-xs text-slate-500">
+                            {request.trip
+                              .vehicle
+                              ?.plateNumber ??
+                              `Vehicle ${request.trip.vehicleId}`}
+                          </p>
 
-                                  <div className="mt-2">
-                                    <TripStatusBadge
-                                      status={
-                                        request.trip
-                                          .status
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400">
-                                  Not assigned
-                                </span>
-                              )}
-                            </td>
+                          <div className="mt-2">
+                            <TripStatusBadge
+                              status={
+                                request.trip
+                                  .status
+                              }
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">
+                          Not assigned
+                        </span>
+                      )}
+                    </td>
 
-                            <td className="py-4 pr-6">
-                              <div className="flex items-center gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectedRequest(
-                                      request,
-                                    )
-                                  }
-                                  className="font-semibold text-blue-600"
-                                >
-                                  View
-                                </button>
+                    <td className="py-4 pr-6">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedRequest(
+                              request,
+                            )
+                          }
+                          className="font-semibold text-blue-600"
+                        >
+                          View
+                        </button>
 
-                                {request.status ===
-                                  'PENDING' && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      disabled={
-                                        isProcessing
-                                      }
-                                      onClick={() =>
-                                        void handleStatusUpdate(
-                                          request,
-                                          'APPROVED',
-                                        )
-                                      }
-                                      className="font-semibold text-green-600 disabled:opacity-50"
-                                    >
-                                      Approve
-                                    </button>
+                        {request.status ===
+                          'PENDING' && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={
+                                isProcessing
+                              }
+                              onClick={() =>
+                                void handleStatusUpdate(
+                                  request,
+                                  'APPROVED',
+                                )
+                              }
+                              className="font-semibold text-green-600 disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
 
-                                    <button
-                                      type="button"
-                                      disabled={
-                                        isProcessing
-                                      }
-                                      onClick={() =>
-                                        void handleStatusUpdate(
-                                          request,
-                                          'REJECTED',
-                                        )
-                                      }
-                                      className="font-semibold text-red-600 disabled:opacity-50"
-                                    >
-                                      Reject
-                                    </button>
-                                  </>
-                                )}
+                            <button
+                              type="button"
+                              disabled={
+                                isProcessing
+                              }
+                              onClick={() =>
+                                void handleStatusUpdate(
+                                  request,
+                                  'REJECTED',
+                                )
+                              }
+                              className="font-semibold text-red-600 disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
 
-                                {request.status ===
-                                  'APPROVED' &&
-                                  !request.trip && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        openAssignmentModal(
-                                          request,
-                                        )
-                                      }
-                                      className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
-                                    >
-                                      Assign Trip
-                                    </button>
-                                  )}
+                        {request.status ===
+                          'APPROVED' &&
+                          !request.trip && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openAssignmentModal(
+                                  request,
+                                )
+                              }
+                              className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                            >
+                              Assign Trip
+                            </button>
+                          )}
 
-                                {request.trip && (
-                                  <span className="text-xs font-semibold text-green-600">
-                                    Assigned
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      },
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                        {request.trip && (
+                          <span className="text-xs font-semibold text-green-600">
+                            Assigned
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              },
             )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )}         
         </div>
       </section>
 
@@ -1312,6 +1360,97 @@ function RouteInformationCard({
       <p className="mt-2 text-2xl font-bold text-blue-950">
         {value}
       </p>
+    </div>
+  )
+}
+function Pagination({
+  currentPage,
+  totalPages,
+  totalItems,
+  itemsPerPage,
+  onPageChange,
+}: {
+  currentPage: number
+  totalPages: number
+  totalItems: number
+  itemsPerPage: number
+  onPageChange: (page: number) => void
+}) {
+  const firstItem =
+    totalItems === 0
+      ? 0
+      : (currentPage - 1) *
+          itemsPerPage +
+        1
+
+  const lastItem = Math.min(
+    currentPage * itemsPerPage,
+    totalItems,
+  )
+
+  return (
+    <div className="flex flex-col gap-4 border-t border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-slate-500">
+        Showing{' '}
+        <span className="font-semibold text-slate-700">
+          {firstItem}
+        </span>{' '}
+        to{' '}
+        <span className="font-semibold text-slate-700">
+          {lastItem}
+        </span>{' '}
+        of{' '}
+        <span className="font-semibold text-slate-700">
+          {totalItems}
+        </span>{' '}
+        requests
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            onPageChange(currentPage - 1)
+          }
+          disabled={currentPage === 1}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Previous
+        </button>
+
+        {Array.from(
+          { length: totalPages },
+          (_, index) => index + 1,
+        ).map((page) => (
+          <button
+            key={page}
+            type="button"
+            onClick={() =>
+              onPageChange(page)
+            }
+            className={`h-10 min-w-10 rounded-lg px-3 text-sm font-semibold transition ${
+              currentPage === page
+                ? 'bg-blue-600 text-white'
+                : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+
+        <button
+          type="button"
+          onClick={() =>
+            onPageChange(currentPage + 1)
+          }
+          disabled={
+            currentPage === totalPages
+          }
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
     </div>
   )
 }
