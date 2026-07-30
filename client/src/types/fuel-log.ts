@@ -13,7 +13,7 @@ export type FuelLog = {
   cost: number
   mileage: number
 
-  fuelStation?: string | null
+  photoUrl?: string | null
 
   vehicle?: Vehicle
   driver?: Driver
@@ -33,7 +33,7 @@ export type CreateFuelLogData = {
   cost: number
   mileage: number
 
-  fuelStation?: string
+  photoUrl?: string
 }
 
 export type UpdateFuelLogData = {
@@ -41,4 +41,5 @@ export type UpdateFuelLogData = {
   liters?: number
   cost?: number
   fuelStation?: string
+  photoUrl?: string
 }

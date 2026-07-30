@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 import {
+  completeMaintenanceLog,
   createMaintenanceLog,
   deleteMaintenanceLog,
   getMaintenanceLogs,
+  reopenMaintenanceLog,
+  startMaintenanceLog,
   updateMaintenanceLog,
 } from '../../services/maintenance-log.service'
 import { getVehicles } from '../../services/vehicle.service'
@@ -29,6 +33,31 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString()
 }
 
+function getApiErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+): string {
+  if (!axios.isAxiosError(error)) {
+    return fallbackMessage
+  }
+
+  const message = error.response?.data?.message
+
+  if (Array.isArray(message)) {
+    return message.join(', ')
+  }
+
+  if (typeof message === 'string') {
+    return message
+  }
+
+  if (!error.response) {
+    return 'Unable to connect to the server.'
+  }
+
+  return fallbackMessage
+}
+
 function MaintenanceView() {
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([])
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -36,8 +65,9 @@ function MaintenanceView() {
     'All',
   )
   const [formData, setFormData] = useState<CreateMaintenanceLogData>(emptyForm)
-  const [status, setStatus] = useState<MaintenanceStatus>('PENDING')
-  const [editingRecordId, setEditingRecordId] = useState<number | null>(null)
+  const [editingRecord, setEditingRecord] = useState<MaintenanceLog | null>(
+    null,
+  )
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -59,17 +89,23 @@ function MaintenanceView() {
       setVehicles(vehiclesData)
     } catch (fetchError) {
       console.error(fetchError)
-      setError('Failed to load maintenance logs')
+      setError(
+        getApiErrorMessage(fetchError, 'Failed to load maintenance logs'),
+      )
     } finally {
       setLoading(false)
     }
   }
 
-  function openAddModal() {
-    const defaultVehicle = vehicles[0]
+  const eligibleVehicles = vehicles.filter(
+    (vehicle) => vehicle.status === 'AVAILABLE',
+  )
 
-    setEditingRecordId(null)
-    setStatus('PENDING')
+  function openAddModal() {
+    const defaultVehicle = eligibleVehicles[0]
+
+    setEditingRecord(null)
+    setError('')
     setFormData({
       vehicleId: defaultVehicle?.id ?? 0,
       serviceDate: new Date().toISOString().split('T')[0],
@@ -81,8 +117,8 @@ function MaintenanceView() {
   }
 
   function openEditModal(record: MaintenanceLog) {
-    setEditingRecordId(record.id)
-    setStatus(record.status)
+    setEditingRecord(record)
+    setError('')
     setFormData({
       vehicleId: record.vehicleId,
       serviceDate: toDateInputValue(record.serviceDate),
@@ -97,8 +133,7 @@ function MaintenanceView() {
 
   function closeModal() {
     setIsModalOpen(false)
-    setEditingRecordId(null)
-    setStatus('PENDING')
+    setEditingRecord(null)
     setFormData(emptyForm)
   }
 
@@ -107,6 +142,11 @@ function MaintenanceView() {
 
     if (!formData.vehicleId || !formData.description.trim()) {
       setError('Please select a vehicle and enter a description.')
+      return
+    }
+
+    if (formData.description.trim().length < 3) {
+      setError('Description must be at least 3 characters.')
       return
     }
 
@@ -127,11 +167,8 @@ function MaintenanceView() {
         nextServiceDate: formData.nextServiceDate?.trim() || undefined,
       }
 
-      if (editingRecordId) {
-        await updateMaintenanceLog(editingRecordId, {
-          ...payload,
-          status,
-        })
+      if (editingRecord) {
+        await updateMaintenanceLog(editingRecord.id, payload)
       } else {
         await createMaintenanceLog(payload)
       }
@@ -140,9 +177,35 @@ function MaintenanceView() {
       await fetchData()
     } catch (submitError) {
       console.error(submitError)
-      setError('Failed to save maintenance log')
+      setError(
+        getApiErrorMessage(submitError, 'Failed to save maintenance log'),
+      )
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleStatusAction(
+    record: MaintenanceLog,
+    action: 'start' | 'complete' | 'reopen',
+  ) {
+    try {
+      setError('')
+
+      if (action === 'start') {
+        await startMaintenanceLog(record.id)
+      } else if (action === 'complete') {
+        await completeMaintenanceLog(record.id)
+      } else {
+        await reopenMaintenanceLog(record.id)
+      }
+
+      await fetchData()
+    } catch (statusError) {
+      console.error(statusError)
+      setError(
+        getApiErrorMessage(statusError, 'Failed to update maintenance status'),
+      )
     }
   }
 
@@ -158,7 +221,9 @@ function MaintenanceView() {
       await fetchData()
     } catch (deleteError) {
       console.error(deleteError)
-      setError('Failed to delete maintenance log')
+      setError(
+        getApiErrorMessage(deleteError, 'Failed to delete maintenance log'),
+      )
     }
   }
 
@@ -178,7 +243,7 @@ function MaintenanceView() {
 
         <button
           onClick={openAddModal}
-          disabled={vehicles.length === 0}
+          disabled={eligibleVehicles.length === 0}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-3 rounded-xl font-semibold transition"
         >
           + Schedule Maintenance
@@ -193,6 +258,11 @@ function MaintenanceView() {
               <p className="text-sm text-slate-500">
                 Total records: {maintenanceLogs.length}
               </p>
+              {eligibleVehicles.length === 0 && !loading && (
+                <p className="text-sm text-amber-600 mt-1">
+                  No available vehicles can be scheduled right now.
+                </p>
+              )}
             </div>
 
             <select
@@ -260,7 +330,7 @@ function MaintenanceView() {
                     </td>
 
                     <td className="py-4 font-semibold">
-                      ${record.cost.toFixed(2)}
+                      {record.cost.toLocaleString()} MMK
                     </td>
 
                     <td className="py-4 text-slate-500">
@@ -272,19 +342,52 @@ function MaintenanceView() {
                     </td>
 
                     <td className="py-4 text-right">
-                      <button
-                        onClick={() => openEditModal(record)}
-                        className="text-blue-600 font-semibold mr-4"
-                      >
-                        Edit
-                      </button>
+                      <div className="flex items-center justify-end gap-3 flex-wrap">
+                        {record.status === 'PENDING' && (
+                          <button
+                            onClick={() => handleStatusAction(record, 'start')}
+                            className="text-amber-600 font-semibold"
+                          >
+                            Start
+                          </button>
+                        )}
 
-                      <button
-                        onClick={() => handleDelete(record.id)}
-                        className="text-red-500 font-semibold"
-                      >
-                        Delete
-                      </button>
+                        {record.status === 'IN_PROGRESS' && (
+                          <button
+                            onClick={() =>
+                              handleStatusAction(record, 'complete')
+                            }
+                            className="text-green-600 font-semibold"
+                          >
+                            Complete
+                          </button>
+                        )}
+
+                        {record.status === 'COMPLETED' && (
+                          <button
+                            onClick={() => handleStatusAction(record, 'reopen')}
+                            className="text-slate-600 font-semibold"
+                          >
+                            Reopen
+                          </button>
+                        )}
+
+                        {record.status !== 'COMPLETED' && (
+                          <button
+                            onClick={() => openEditModal(record)}
+                            className="text-blue-600 font-semibold"
+                          >
+                            Edit
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleDelete(record.id)}
+                          className="text-red-500 font-semibold"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -300,12 +403,14 @@ function MaintenanceView() {
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="text-xl font-bold">
-                  {editingRecordId
+                  {editingRecord
                     ? 'Edit Maintenance Log'
                     : 'Schedule Maintenance'}
                 </h3>
                 <p className="text-sm text-slate-500">
-                  Record service details for a fleet vehicle.
+                  {editingRecord
+                    ? 'Update service details for this maintenance record.'
+                    : 'Only vehicles with AVAILABLE status can be scheduled.'}
                 </p>
               </div>
 
@@ -332,13 +437,16 @@ function MaintenanceView() {
                   }
                   className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
                   required
-                  disabled={Boolean(editingRecordId)}
+                  disabled={Boolean(editingRecord)}
                 >
-                  {vehicles.map((vehicle) => (
-                    <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plateNumber} ({vehicle.vehicleType})
-                    </option>
-                  ))}
+                  {(editingRecord ? vehicles : eligibleVehicles).map(
+                    (vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.plateNumber} ({vehicle.vehicleType})
+                        {!editingRecord ? '' : ` - ${vehicle.status}`}
+                      </option>
+                    ),
+                  )}
                 </select>
               </div>
 
@@ -355,7 +463,7 @@ function MaintenanceView() {
                     })
                   }
                   className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                  placeholder="e.g. Engine oil change and brake inspection"
+                  placeholder="e.g. Oil change and brake inspection"
                   required
                 />
               </div>
@@ -381,11 +489,11 @@ function MaintenanceView() {
 
                 <div>
                   <label className="text-sm font-semibold text-slate-700">
-                    Cost ($)
+                    Cost (MMK)
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="1000"
                     min="0"
                     value={formData.cost || ''}
                     onChange={(event) =>
@@ -417,25 +525,6 @@ function MaintenanceView() {
                 />
               </div>
 
-              {editingRecordId && (
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">
-                    Status
-                  </label>
-                  <select
-                    value={status}
-                    onChange={(event) =>
-                      setStatus(event.target.value as MaintenanceStatus)
-                    }
-                    className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                  >
-                    <option value="PENDING">Pending</option>
-                    <option value="IN_PROGRESS">In Progress</option>
-                    <option value="COMPLETED">Completed</option>
-                  </select>
-                </div>
-              )}
-
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
@@ -452,7 +541,7 @@ function MaintenanceView() {
                 >
                   {saving
                     ? 'Saving...'
-                    : editingRecordId
+                    : editingRecord
                       ? 'Update Maintenance'
                       : 'Create Maintenance'}
                 </button>

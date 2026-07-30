@@ -754,7 +754,7 @@ function DriversView() {
                   onChange={
                     handleInputChange
                   }
-                  placeholder="e.g. DL-98234125"
+                  placeholder=""
                   autoComplete="off"
                   required
                 />

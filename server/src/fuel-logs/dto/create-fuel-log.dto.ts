@@ -39,6 +39,5 @@ export class CreateFuelLogDto {
 
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  fuelStation?: string
+  photoUrl?: string
 }

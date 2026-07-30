@@ -30,9 +30,4 @@ export type CreateMaintenanceLogData = {
   nextServiceDate?: string
 }
 
-export type UpdateMaintenanceLogData = {
-  serviceDate?: string
-  description?: string
-  cost?: number
-  nextServiceDate?: string | null
-}
+export type UpdateMaintenanceLogData = Partial<CreateMaintenanceLogData>

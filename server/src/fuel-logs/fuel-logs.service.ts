@@ -400,9 +400,9 @@ export class FuelLogsService {
               mileage:
                 createFuelLogDto.mileage,
 
-              fuelStation:
+              receiptPhoto:
                 createFuelLogDto
-                  .fuelStation
+                  .photoUrl
                   ?.trim() || null,
             },
 

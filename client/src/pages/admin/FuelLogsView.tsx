@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 import {
   createFuelLog,
   deleteFuelLog,
@@ -17,11 +18,61 @@ const emptyForm: CreateFuelLogData = {
   liters: 0,
   cost: 0,
   mileage: 0,
-  fuelStation: '',
+  photoUrl: '',
 }
 
 function formatFuelDate(value: string) {
   return new Date(value).toLocaleDateString()
+}
+
+function getAssignedDriverForVehicle(
+  drivers: Driver[],
+  vehicleId: number,
+) {
+  return drivers.find(
+    (driver) => driver.assignedVehicleId === vehicleId,
+  )
+}
+
+function getDefaultFuelLogSelection(
+  vehicles: Vehicle[],
+  drivers: Driver[],
+) {
+  const vehicleWithDriver = vehicles.find((vehicle) =>
+    getAssignedDriverForVehicle(drivers, vehicle.id),
+  )
+
+  const vehicle = vehicleWithDriver ?? vehicles[0]
+  const driver = vehicle
+    ? getAssignedDriverForVehicle(drivers, vehicle.id)
+    : undefined
+
+  return { vehicle, driver }
+}
+
+function getApiErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+): string {
+  if (!axios.isAxiosError(error)) {
+    return fallbackMessage
+  }
+
+  const message = error.response?.data?.message
+
+  if (Array.isArray(message)) {
+    return message.join(', ')
+  }
+
+  if (typeof message === 'string') {
+    return message
+  }
+
+  if (!error.response) {
+    return 'Unable to connect to the server.'
+  }
+
+  return fallbackMessage
 }
 
 function FuelLogsView() {
@@ -53,7 +104,9 @@ function FuelLogsView() {
       setDrivers(driversData)
     } catch (fetchError) {
       console.error(fetchError)
-      setError('Failed to load fuel logs')
+      setError(
+        getApiErrorMessage(fetchError, 'Failed to load fuel logs'),
+      )
     } finally {
       setLoading(false)
     }
@@ -63,18 +116,31 @@ function FuelLogsView() {
     (vehicle) => vehicle.id === formData.vehicleId,
   )
 
-  function openAddModal() {
-    const defaultVehicle = vehicles[0]
-    const defaultDriver = drivers[0]
+  const eligibleDrivers = formData.vehicleId
+    ? drivers.filter(
+        (driver) => driver.assignedVehicleId === formData.vehicleId,
+      )
+    : []
 
+  const canCreateFuelLog = vehicles.some((vehicle) =>
+    getAssignedDriverForVehicle(drivers, vehicle.id),
+  )
+
+  function openAddModal() {
+    const { vehicle, driver } = getDefaultFuelLogSelection(
+      vehicles,
+      drivers,
+    )
+
+    setError('')
     setFormData({
-      vehicleId: defaultVehicle?.id ?? 0,
-      driverId: defaultDriver?.id ?? 0,
+      vehicleId: vehicle?.id ?? 0,
+      driverId: driver?.id ?? 0,
       fuelDate: new Date().toISOString().split('T')[0],
       liters: 0,
       cost: 0,
-      mileage: defaultVehicle?.currentMileage ?? 0,
-      fuelStation: '',
+      mileage: vehicle?.currentMileage ?? 0,
+      photoUrl: '',
     })
     setIsModalOpen(true)
   }
@@ -88,7 +154,9 @@ function FuelLogsView() {
     event.preventDefault()
 
     if (!formData.vehicleId || !formData.driverId) {
-      setError('Please select both a vehicle and a driver.')
+      setError(
+        'Please select a vehicle with an assigned driver. Fuel logs require a matching driver-vehicle pair.',
+      )
       return
     }
 
@@ -97,9 +165,24 @@ function FuelLogsView() {
       return
     }
 
+    if (
+      selectedVehicle &&
+      formData.mileage < selectedVehicle.currentMileage
+    ) {
+      setError(
+        `Mileage must be at least ${selectedVehicle.currentMileage.toLocaleString()} km.`,
+      )
+      return
+    }
+
     try {
       setSaving(true)
       setError('')
+
+      const photoUrl =
+        formData.photoUrl && !formData.photoUrl.startsWith('data:')
+          ? formData.photoUrl
+          : undefined
 
       await createFuelLog({
         vehicleId: formData.vehicleId,
@@ -108,14 +191,16 @@ function FuelLogsView() {
         liters: Number(formData.liters),
         cost: Number(formData.cost),
         mileage: Number(formData.mileage),
-        fuelStation: formData.fuelStation?.trim() || undefined,
+        photoUrl,
       })
 
       closeModal()
       await fetchData()
     } catch (submitError) {
       console.error(submitError)
-      setError('Failed to save fuel log')
+      setError(
+        getApiErrorMessage(submitError, 'Failed to save fuel log'),
+      )
     } finally {
       setSaving(false)
     }
@@ -131,7 +216,9 @@ function FuelLogsView() {
       await fetchData()
     } catch (deleteError) {
       console.error(deleteError)
-      setError('Failed to delete fuel log')
+      setError(
+        getApiErrorMessage(deleteError, 'Failed to delete fuel log'),
+      )
     }
   }
 
@@ -154,7 +241,7 @@ function FuelLogsView() {
 
         <button
           onClick={openAddModal}
-          // disabled={vehicles.length === 0 || drivers.length === 0}
+          disabled={!canCreateFuelLog}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-3 rounded-xl font-semibold transition"
         >
           + Log Fuel Consumption
@@ -203,7 +290,6 @@ function FuelLogsView() {
                   <th className="py-4">Liters</th>
                   <th className="py-4">Cost</th>
                   <th className="py-4">Mileage</th>
-                  <th className="py-4">Fuel Station</th>
                   <th className="py-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -234,15 +320,11 @@ function FuelLogsView() {
                     <td className="py-4">{log.liters} L</td>
 
                     <td className="py-4 font-semibold">
-                      ${log.cost.toFixed(2)}
+                      {log.cost.toLocaleString()} MMK
                     </td>
 
                     <td className="py-4">
                       {log.mileage.toLocaleString()} km
-                    </td>
-
-                    <td className="py-4 text-slate-500">
-                      {log.fuelStation ?? <span className="text-slate-400">—</span>}
                     </td>
 
                     <td className="py-4 text-right">
@@ -268,7 +350,8 @@ function FuelLogsView() {
               <div>
                 <h3 className="text-xl font-bold">Log Fuel Consumption</h3>
                 <p className="text-sm text-slate-500">
-                  Mileage must be at or above the vehicle&apos;s current mileage.
+                  Select a vehicle and its assigned driver. Mileage must be at
+                  or above the vehicle&apos;s current mileage.
                 </p>
               </div>
 
@@ -292,11 +375,17 @@ function FuelLogsView() {
                     const nextVehicle = vehicles.find(
                       (vehicle) => vehicle.id === nextVehicleId,
                     )
+                    const assignedDriver = getAssignedDriverForVehicle(
+                      drivers,
+                      nextVehicleId,
+                    )
 
                     setFormData({
                       ...formData,
                       vehicleId: nextVehicleId,
-                      mileage: nextVehicle?.currentMileage ?? formData.mileage,
+                      driverId: assignedDriver?.id ?? 0,
+                      mileage:
+                        nextVehicle?.currentMileage ?? formData.mileage,
                     })
                   }}
                   className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
@@ -312,7 +401,7 @@ function FuelLogsView() {
 
               <div>
                 <label className="text-sm font-semibold text-slate-700">
-                  Driver
+                  Assigned Driver
                 </label>
                 <select
                   value={formData.driverId || ''}
@@ -324,12 +413,17 @@ function FuelLogsView() {
                   }
                   className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
                   required
+                  disabled={eligibleDrivers.length <= 1}
                 >
-                  {drivers.map((driver) => (
-                    <option key={driver.id} value={driver.id}>
-                      {driver.user?.name ?? `Driver #${driver.id}`}
-                    </option>
-                  ))}
+                  {eligibleDrivers.length === 0 ? (
+                    <option value="">No assigned driver for this vehicle</option>
+                  ) : (
+                    eligibleDrivers.map((driver) => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.user?.name ?? `Driver #${driver.id}`}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -345,65 +439,6 @@ function FuelLogsView() {
                       setFormData({
                         ...formData,
                         fuelDate: event.target.value,
-                      })
-                    }
-                    className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">
-                    Fuel Station
-                  </label>
-                  <input
-                    value={formData.fuelStation ?? ''}
-                    onChange={(event) =>
-                      setFormData({
-                        ...formData,
-                        fuelStation: event.target.value,
-                      })
-                    }
-                    className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                    placeholder="e.g. Shell Downtown"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">
-                    Liters
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.1"
-                    value={formData.liters || ''}
-                    onChange={(event) =>
-                      setFormData({
-                        ...formData,
-                        liters: Number(event.target.value),
-                      })
-                    }
-                    className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">
-                    Cost ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.cost || ''}
-                    onChange={(event) =>
-                      setFormData({
-                        ...formData,
-                        cost: Number(event.target.value),
                       })
                     }
                     className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
@@ -437,6 +472,48 @@ function FuelLogsView() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Liters
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    value={formData.liters || ''}
+                    onChange={(event) =>
+                      setFormData({
+                        ...formData,
+                        liters: Number(event.target.value),
+                      })
+                    }
+                    className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Cost (MMK)
+                  </label>
+                  <input
+                    type="number"
+                    step="1000"
+                    min="0"
+                    value={formData.cost || ''}
+                    onChange={(event) =>
+                      setFormData({
+                        ...formData,
+                        cost: Number(event.target.value),
+                      })
+                    }
+                    className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
@@ -448,8 +525,8 @@ function FuelLogsView() {
 
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold"
+                  disabled={saving || eligibleDrivers.length === 0}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-3 rounded-xl font-semibold"
                 >
                   {saving ? 'Saving...' : 'Create Fuel Log'}
                 </button>

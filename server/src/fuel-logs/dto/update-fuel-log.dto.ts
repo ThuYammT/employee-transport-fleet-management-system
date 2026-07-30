@@ -24,6 +24,5 @@ export class UpdateFuelLogDto {
 
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  fuelStation?: string
+  photoUrl?: string
 }
