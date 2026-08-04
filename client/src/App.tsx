@@ -27,7 +27,7 @@ import DriverProfilePage from './pages/driver/DriverProfilePage'
 import FuelLogsPage from './pages/driver/FuelLogsPage'
 import MyTripsPage from './pages/driver/MyTripsPage'
 import MyVehiclePage from './pages/driver/MyVehiclePage'
-import VehicleIssuesPage from './pages/driver/VehicleIssuesPage'
+import VehicleIssuesPage from './pages/driver/MaintenanceReport'
 
 import EmployeeDashboard from './pages/employee/EmployeeDashboard'
 import EmployeeProfilePage from './pages/employee/EmployeeProfilePage'

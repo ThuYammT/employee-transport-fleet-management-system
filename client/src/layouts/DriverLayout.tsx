@@ -19,11 +19,11 @@ const menuItems = [
     path: '/driver/my-trips',
   },
   {
-    label: 'Fuel Logs',
+    label: 'Fuel Records',
     path: '/driver/fuel-logs',
   },
   {
-    label: 'Vehicle Issues',
+    label: 'Report Maintanence',
     path: '/driver/vehicle-issues',
   },
   {

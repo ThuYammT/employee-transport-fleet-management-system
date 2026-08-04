@@ -1,27 +1,24 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
 import {
-  createFuelLog,
-  getFuelLogsByDriverId,
-} from '../../services/fuel-log.service'
+  createVehicleIssueReport,
+  getVehicleIssueReportsByDriverId,
+} from '../../services/vehicle-issue-report.service'
 import { getDriverByUserId } from '../../services/driver.service'
 import { getVehicles } from '../../services/vehicle.service'
-import type { CreateFuelLogData, FuelLog } from '../../types/fuel-log'
+import type { CreateVehicleIssueReportData, VehicleIssueReport } from '../../types/vehicle-issue-report'
 import type { Driver } from '../../types/driver'
 import type { Vehicle } from '../../types/vehicle'
 import { getCurrentUser } from '../../utils/user-session'
 
-const emptyForm: CreateFuelLogData = {
+const emptyForm: CreateVehicleIssueReportData = {
   vehicleId: 0,
   driverId: 0,
-  fuelDate: new Date().toISOString().split('T')[0],
-  liters: 0,
-  cost: 0,
-  mileage: 0,
-  photoUrl: '',
+  issueTitle: '',
+  description: '',
 }
 
-function formatFuelDate(value: string) {
+function formatDate(value: string) {
   return new Date(value).toLocaleDateString()
 }
 
@@ -50,21 +47,38 @@ function getApiErrorMessage(
   return fallbackMessage
 }
 
-function FuelLogsPage() {
-  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([])
+function getStatusBadge(status: string) {
+  const baseClass = 'px-3 py-1 rounded-lg text-xs font-semibold'
+
+  const statusClass =
+    status === 'RESOLVED'
+      ? 'bg-green-100 text-green-700'
+      : status === 'IN_PROGRESS'
+        ? 'bg-amber-100 text-amber-700'
+        : 'bg-blue-100 text-blue-700'
+
+  return (
+    <span className={`${baseClass} ${statusClass}`}>
+      {status.replaceAll('_', ' ')}
+    </span>
+  )
+}
+
+function MaintenanceReport() {
+  const [issueReports, setIssueReports] = useState<VehicleIssueReport[]>([])
   const [driver, setDriver] = useState<Driver | null>(null)
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
-  const [formData, setFormData] = useState<CreateFuelLogData>(emptyForm)
+  const [formData, setFormData] = useState<CreateVehicleIssueReportData>(emptyForm)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetchDriverAndLogs()
+    fetchDriverAndReports()
   }, [])
 
-  async function fetchDriverAndLogs() {
+  async function fetchDriverAndReports() {
     try {
       setLoading(true)
       setError('')
@@ -88,11 +102,11 @@ function FuelLogsPage() {
         }
       }
 
-      const logsData = await getFuelLogsByDriverId(driverData.id)
-      setFuelLogs(logsData)
+      const reportsData = await getVehicleIssueReportsByDriverId(driverData.id)
+      setIssueReports(reportsData)
     } catch (fetchError) {
       console.error(fetchError)
-      setError(getApiErrorMessage(fetchError, 'Failed to load fuel logs'))
+      setError(getApiErrorMessage(fetchError, 'Failed to load issue reports'))
     } finally {
       setLoading(false)
     }
@@ -108,11 +122,8 @@ function FuelLogsPage() {
     setFormData({
       vehicleId: vehicle.id,
       driverId: driver.id,
-      fuelDate: new Date().toISOString().split('T')[0],
-      liters: 0,
-      cost: 0,
-      mileage: vehicle.currentMileage,
-      photoUrl: '',
+      issueTitle: '',
+      description: '',
     })
     setIsModalOpen(true)
   }
@@ -130,15 +141,18 @@ function FuelLogsPage() {
       return
     }
 
-    if (formData.liters <= 0 || formData.cost < 0 || formData.mileage < 0) {
-      setError('Please enter valid fuel amount, cost, and mileage.')
+    if (!formData.issueTitle.trim() || !formData.description.trim()) {
+      setError('Please enter both issue title and description.')
       return
     }
 
-    if (vehicle && formData.mileage < vehicle.currentMileage) {
-      setError(
-        `Mileage must be at least ${vehicle.currentMileage.toLocaleString()} km.`,
-      )
+    if (formData.issueTitle.trim().length < 3) {
+      setError('Issue title must be at least 3 characters.')
+      return
+    }
+
+    if (formData.description.trim().length < 10) {
+      setError('Description must be at least 10 characters.')
       return
     }
 
@@ -146,26 +160,18 @@ function FuelLogsPage() {
       setSaving(true)
       setError('')
 
-      const photoUrl =
-        formData.photoUrl && !formData.photoUrl.startsWith('data:')
-          ? formData.photoUrl
-          : undefined
-
-      await createFuelLog({
+      await createVehicleIssueReport({
         vehicleId: formData.vehicleId,
         driverId: formData.driverId,
-        fuelDate: formData.fuelDate,
-        liters: Number(formData.liters),
-        cost: Number(formData.cost),
-        mileage: Number(formData.mileage),
-        photoUrl,
+        issueTitle: formData.issueTitle.trim(),
+        description: formData.description.trim(),
       })
 
       closeModal()
-      await fetchDriverAndLogs()
+      await fetchDriverAndReports()
     } catch (submitError) {
       console.error(submitError)
-      setError(getApiErrorMessage(submitError, 'Failed to save fuel log'))
+      setError(getApiErrorMessage(submitError, 'Failed to submit issue report'))
     } finally {
       setSaving(false)
     }
@@ -173,6 +179,12 @@ function FuelLogsPage() {
 
   return (
     <section className="page-section">
+      <header className="mb-8">
+        <h2 className="text-2xl font-bold text-slate-900">My Maintenance Reports</h2>
+        <p className="text-slate-500 mt-1">
+          Report and track maintenance issues for your assigned vehicle.
+        </p>
+      </header>
 
       {error && (
         <div
@@ -185,16 +197,16 @@ function FuelLogsPage() {
 
       {loading ? (
         <div className="bg-white rounded-2xl shadow border border-slate-200 p-8 text-center">
-          <p className="text-slate-500">Loading fuel records...</p>
+          <p className="text-slate-500">Loading maintenance reports...</p>
         </div>
       ) : (
         <>
           <div className="bg-white rounded-2xl shadow border border-slate-200 p-6 mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
-                <h3 className="text-lg font-bold">Fuel Records</h3>
+                <h3 className="text-lg font-bold">Issue Reports</h3>
                 <p className="text-sm text-slate-500">
-                  Total logs: {fuelLogs.length}
+                  Total reports: {issueReports.length}
                 </p>
               </div>
 
@@ -203,7 +215,7 @@ function FuelLogsPage() {
                   onClick={openAddModal}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold transition w-full sm:w-auto"
                 >
-                  + Log Fuel
+                  + Report Issue
                 </button>
               )}
             </div>
@@ -213,54 +225,52 @@ function FuelLogsPage() {
                 <p className="font-medium">No vehicle assigned</p>
                 <p className="text-sm mt-1">
                   Please contact your administrator to assign a vehicle to your
-                  profile before logging fuel.
+                  profile before reporting maintenance issues.
                 </p>
               </div>
             )}
 
-            {driver && vehicle && fuelLogs.length === 0 && (
+            {driver && vehicle && issueReports.length === 0 && (
               <p className="text-slate-500 text-center py-8">
-                No fuel logs recorded yet. Click "Log Fuel" to add your
-                first record.
+                No maintenance issues reported yet. Click "Report Issue" to add
+                your first report.
               </p>
             )}
 
-            {driver && vehicle && fuelLogs.length > 0 && (
+            {driver && vehicle && issueReports.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-left text-slate-500">
                       <th className="py-4">Date</th>
                       <th className="py-4">Vehicle</th>
-                      <th className="py-4">Liters</th>
-                      <th className="py-4">Cost</th>
-                      <th className="py-4">Mileage</th>
+                      <th className="py-4">Issue Title</th>
+                      <th className="py-4">Description</th>
+                      <th className="py-4">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {fuelLogs.map((log) => (
+                    {issueReports.map((report) => (
                       <tr
-                        key={log.id}
+                        key={report.id}
                         className="border-b border-slate-100 hover:bg-slate-50"
                       >
                         <td className="py-4 font-medium">
-                          {formatFuelDate(log.fuelDate)}
+                          {formatDate(report.reportedAt ?? report.createdAt ?? '')}
                         </td>
                         <td className="py-4">
                           <div className="font-semibold">
-                            {log.vehicle?.plateNumber ?? `Vehicle #${log.vehicleId}`}
+                            {report.vehicle?.plateNumber ?? `Vehicle #${report.vehicleId}`}
                           </div>
                           <div className="text-xs text-slate-500">
-                            {log.vehicle?.vehicleType ?? '—'}
+                            {report.vehicle?.vehicleType ?? '—'}
                           </div>
                         </td>
-                        <td className="py-4">{log.liters} L</td>
-                        <td className="py-4 font-semibold">
-                          {log.cost.toLocaleString()} MMK
+                        <td className="py-4 font-medium">{report.issueTitle}</td>
+                        <td className="py-4 max-w-xs truncate" title={report.description}>
+                          {report.description}
                         </td>
-                        <td className="py-4">
-                          {log.mileage.toLocaleString()} km
-                        </td>
+                        <td className="py-4">{getStatusBadge(report.status)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -274,10 +284,9 @@ function FuelLogsPage() {
               <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                   <div>
-                    <h3 className="text-xl font-bold">Log Fuel Consumption</h3>
+                    <h3 className="text-xl font-bold">Report Maintenance Issue</h3>
                     <p className="text-sm text-slate-500">
-                      Record your refueling details. Mileage must be at or above
-                      the vehicle&apos;s current mileage.
+                      Describe the issue you&apos;re experiencing with your vehicle.
                     </p>
                   </div>
                   <button
@@ -302,87 +311,40 @@ function FuelLogsPage() {
 
                   <div>
                     <label className="text-sm font-semibold text-slate-700">
-                      Fuel Date
+                      Issue Title
                     </label>
                     <input
-                      type="date"
-                      value={formData.fuelDate}
+                      type="text"
+                      value={formData.issueTitle}
                       onChange={(event) =>
                         setFormData({
                           ...formData,
-                          fuelDate: event.target.value,
+                          issueTitle: event.target.value,
                         })
                       }
                       className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
+                      placeholder="e.g. Brake noise, Engine overheating"
                       required
                     />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-semibold text-slate-700">
-                        Liters
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0.1"
-                        value={formData.liters || ''}
-                        onChange={(event) =>
-                          setFormData({
-                            ...formData,
-                            liters: Number(event.target.value),
-                          })
-                        }
-                        className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-semibold text-slate-700">
-                        Cost (MMK)
-                      </label>
-                      <input
-                        type="number"
-                        step="1000"
-                        min="0"
-                        value={formData.cost || ''}
-                        onChange={(event) =>
-                          setFormData({
-                            ...formData,
-                            cost: Number(event.target.value),
-                          })
-                        }
-                        className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                        required
-                      />
-                    </div>
                   </div>
 
                   <div>
                     <label className="text-sm font-semibold text-slate-700">
-                      Mileage (km)
+                      Description
                     </label>
-                    <input
-                      type="number"
-                      min={vehicle?.currentMileage ?? 0}
-                      value={formData.mileage || ''}
+                    <textarea
+                      value={formData.description}
                       onChange={(event) =>
                         setFormData({
                           ...formData,
-                          mileage: Number(event.target.value),
+                          description: event.target.value,
                         })
                       }
-                      className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
+                      rows={4}
+                      className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none resize-none"
+                      placeholder="Describe the issue in detail..."
                       required
                     />
-                    {vehicle && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Current vehicle mileage:{' '}
-                        {vehicle.currentMileage.toLocaleString()} km
-                      </p>
-                    )}
                   </div>
 
                   <div className="flex justify-end gap-3 pt-4">
@@ -399,7 +361,7 @@ function FuelLogsPage() {
                       disabled={saving}
                       className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-3 rounded-xl font-semibold"
                     >
-                      {saving ? 'Saving...' : 'Create Fuel Log'}
+                      {saving ? 'Submitting...' : 'Submit Report'}
                     </button>
                   </div>
                 </form>
@@ -412,4 +374,4 @@ function FuelLogsPage() {
   )
 }
 
-export default FuelLogsPage
+export default MaintenanceReport
