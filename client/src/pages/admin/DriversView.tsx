@@ -9,6 +9,7 @@ import {
 import {
   createDriver,
   deactivateDriver,
+  deleteDriver,
   getDrivers,
   updateDriver,
 } from '../../services/driver.service'
@@ -81,8 +82,8 @@ function DriversView() {
     useState(false)
 
   const [
-    deactivatingDriverId,
-    setDeactivatingDriverId,
+    deletingDriverId,
+    setDeletingDriverId,
   ] = useState<number | null>(null)
 
   const [error, setError] =
@@ -97,9 +98,14 @@ function DriversView() {
     void fetchData()
   }, [])
 
-  async function fetchData() {
+  async function fetchData(
+    silent = false,
+  ) {
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
+
       setError('')
 
       const [
@@ -122,7 +128,9 @@ function DriversView() {
         ),
       )
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }
 
@@ -158,6 +166,13 @@ function DriversView() {
   function closeModal() {
     if (saving) return
 
+    setIsModalOpen(false)
+    setEditingDriverId(null)
+    setFormData(emptyForm)
+    setModalError('')
+  }
+
+  function resetModal() {
     setIsModalOpen(false)
     setEditingDriverId(null)
     setFormData(emptyForm)
@@ -285,8 +300,8 @@ function DriversView() {
         await createDriver(payload)
       }
 
-      closeModal()
-      await fetchData()
+      resetModal()
+      await fetchData(true)
     } catch (error) {
       console.error(error)
 
@@ -301,25 +316,83 @@ function DriversView() {
     }
   }
 
-  async function handleDeactivate(
+  async function handleDelete(
     driver: Driver,
   ) {
     if (
       driver.availabilityStatus ===
-      'INACTIVE'
+      'ON_TRIP'
     ) {
+      setError(
+        `${driver.user.name} cannot be deleted while on a trip.`,
+      )
+
       return
     }
 
     const confirmed =
       window.confirm(
-        `Deactivate ${driver.user.name}?\n\nThe driver will no longer be able to log in, but their trip history will be preserved.`,
+        `Permanently delete ${driver.user.name}?\n\nTheir account, trips, fuel logs and issue reports will also be removed.`,
       )
 
     if (!confirmed) return
 
     try {
-      setDeactivatingDriverId(
+      setDeletingDriverId(
+        driver.id,
+      )
+
+      setError('')
+
+      await deleteDriver(
+        driver.id,
+      )
+
+      setDrivers((current) =>
+        current.filter(
+          (item) =>
+            item.id !== driver.id,
+        ),
+      )
+    } catch (error) {
+      console.error(error)
+
+      setError(
+        getApiErrorMessage(
+          error,
+          'Failed to delete the driver.',
+        ),
+      )
+    } finally {
+      setDeletingDriverId(
+        null,
+      )
+    }
+  }
+
+  async function handleDeactivate(
+    driver: Driver,
+  ) {
+    if (
+      driver.availabilityStatus ===
+      'ON_TRIP'
+    ) {
+      setError(
+        `${driver.user.name} cannot be deactivated while on a trip.`,
+      )
+
+      return
+    }
+
+    const confirmed =
+      window.confirm(
+        `Deactivate ${driver.user.name}?\n\nThey will be marked as inactive and unassigned from their vehicle. Their history will be preserved.`,
+      )
+
+    if (!confirmed) return
+
+    try {
+      setDeletingDriverId(
         driver.id,
       )
 
@@ -329,7 +402,7 @@ function DriversView() {
         driver.id,
       )
 
-      await fetchData()
+      await fetchData(true)
     } catch (error) {
       console.error(error)
 
@@ -340,7 +413,7 @@ function DriversView() {
         ),
       )
     } finally {
-      setDeactivatingDriverId(
+      setDeletingDriverId(
         null,
       )
     }
@@ -771,28 +844,48 @@ function DriversView() {
                                 Edit
                               </button>
 
+                              {driver.availabilityStatus !== 'INACTIVE' && (
+                                <button
+                                  type="button"
+                                  disabled={
+                                    driver.availabilityStatus ===
+                                      'ON_TRIP' ||
+                                    deletingDriverId ===
+                                      driver.id
+                                  }
+                                  onClick={() =>
+                                    void handleDeactivate(
+                                      driver,
+                                    )
+                                  }
+                                  className="rounded-lg border border-amber-100 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                                >
+                                  {deletingDriverId ===
+                                  driver.id
+                                    ? 'Deactivating...'
+                                    : 'Deactivate'}
+                                </button>
+                              )}
+
                               <button
                                 type="button"
                                 disabled={
                                   driver.availabilityStatus ===
-                                    'INACTIVE' ||
-                                  deactivatingDriverId ===
+                                    'ON_TRIP' ||
+                                  deletingDriverId ===
                                     driver.id
                                 }
                                 onClick={() =>
-                                  void handleDeactivate(
+                                  void handleDelete(
                                     driver,
                                   )
                                 }
                                 className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
                               >
-                                {deactivatingDriverId ===
+                                {deletingDriverId ===
                                 driver.id
-                                  ? 'Deactivating...'
-                                  : driver.availabilityStatus ===
-                                      'INACTIVE'
-                                    ? 'Inactive'
-                                    : 'Deactivate'}
+                                  ? 'Deleting...'
+                                  : 'Delete'}
                               </button>
                             </div>
                           </td>

@@ -12,6 +12,10 @@ import {
 } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 
+import {
+  assertNoInProgressTrip,
+  restoreVehicleIfIdle,
+} from '../prisma/cascade-delete'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateDriverDto } from './dto/create-driver.dto'
 import { UpdateDriverDto } from './dto/update-driver.dto'
@@ -419,6 +423,80 @@ export class DriversService {
         })
       },
     )
+  }
+
+  async remove(id: number) {
+    const existingDriver = await this.prisma.driver.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+        userId: true,
+        trips: {
+          select: {
+            id: true,
+            vehicleId: true,
+            status: true,
+          },
+        },
+      },
+    })
+
+    if (!existingDriver) {
+      throw new NotFoundException(
+        `Driver with ID ${id} was not found`,
+      )
+    }
+
+    assertNoInProgressTrip(
+      existingDriver.trips,
+      'A driver currently on a trip cannot be deleted',
+    )
+
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.fuelLog.deleteMany({
+        where: {
+          driverId: id,
+        },
+      })
+
+      await transaction.vehicleIssueReport.deleteMany({
+        where: {
+          driverId: id,
+        },
+      })
+
+      await transaction.trip.deleteMany({
+        where: {
+          driverId: id,
+        },
+      })
+
+      for (const trip of existingDriver.trips) {
+        await restoreVehicleIfIdle(transaction, trip.vehicleId)
+      }
+
+      await transaction.driver.delete({
+        where: {
+          id,
+        },
+      })
+
+      return transaction.user.delete({
+        where: {
+          id: existingDriver.userId,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          status: true,
+        },
+      })
+    })
   }
 
   private async validateVehicleAssignment(

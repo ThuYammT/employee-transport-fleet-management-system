@@ -11,6 +11,7 @@ import {
   VehicleStatus,
 } from '@prisma/client'
 
+import { deleteFuelLogsForTrips } from '../prisma/cascade-delete'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateTripDto } from './dto/create-trip.dto'
 import { UpdateTripDto } from './dto/update-trip.dto'
@@ -681,7 +682,8 @@ async cancelTrip(id: number) {
       return cancelledTrip
     },
   )
-}
+  }
+
   async remove(id: number) {
     const trip = await this.findOne(id)
 
@@ -693,6 +695,16 @@ async cancelTrip(id: number) {
 
     return this.prisma.$transaction(
       async (transaction) => {
+        await deleteFuelLogsForTrips(transaction, [id])
+
+        const deletedTrip = await transaction.trip.delete({
+          where: {
+            id,
+          },
+
+          include: tripInclude,
+        })
+
         await transaction.driver.update({
           where: {
             id: trip.driverId,
@@ -714,13 +726,7 @@ async cancelTrip(id: number) {
           },
         })
 
-        return transaction.trip.delete({
-          where: {
-            id,
-          },
-
-          include: tripInclude,
-        })
+        return deletedTrip
       },
     )
   }

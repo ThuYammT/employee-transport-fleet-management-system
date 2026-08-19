@@ -50,6 +50,14 @@ export class DriversController {
     )
   }
 
+  @Patch(':id/deactivate')
+  deactivate(
+    @Param('id', ParseIntPipe)
+    id: number,
+  ) {
+    return this.driversService.deactivate(id)
+  }
+
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe)
@@ -65,10 +73,10 @@ export class DriversController {
   }
 
   @Delete(':id')
-  deactivate(
+  remove(
     @Param('id', ParseIntPipe)
     id: number,
   ) {
-    return this.driversService.deactivate(id)
+    return this.driversService.remove(id)
   }
 }

@@ -187,7 +187,7 @@ function FuelLogsView() {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
               Select a vehicle to review
               its fuel usage, cost history,
-              mileage and individual
+              and individual
               refueling records.
             </p>
           </div>
@@ -461,11 +461,6 @@ function VehicleFuelCard({
         </div>
 
         <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-          <p className="text-xs text-slate-400">
-            {vehicle.currentMileage.toLocaleString()}{' '}
-            km current mileage
-          </p>
-
           <span className="text-sm font-semibold text-blue-600 transition group-hover:text-blue-700">
             View details →
           </span>

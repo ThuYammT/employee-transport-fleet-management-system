@@ -163,7 +163,6 @@ model FuelLog {
   fuelDate      DateTime
   liters        Float
   cost          Float
-  mileage       Int
   fuelStation   String?
   receiptPhoto  String?
 

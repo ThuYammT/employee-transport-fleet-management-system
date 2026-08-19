@@ -62,9 +62,15 @@ export async function updateDriver(
 export async function deactivateDriver(
   id: number,
 ): Promise<Driver> {
-  const response = await api.delete<Driver>(
-    `/drivers/${id}`,
+  const response = await api.patch<Driver>(
+    `/drivers/${id}/deactivate`,
   )
 
   return response.data
+}
+
+export async function deleteDriver(
+  id: number,
+): Promise<void> {
+  await api.delete(`/drivers/${id}`)
 }

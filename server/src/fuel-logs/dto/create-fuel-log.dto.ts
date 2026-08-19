@@ -32,10 +32,6 @@ export class CreateFuelLogDto {
   @Min(0)
   cost: number
 
-  @IsInt()
-  @Min(0)
-  mileage: number
-
   @IsOptional()
   @IsString()
   fuelStation?: string

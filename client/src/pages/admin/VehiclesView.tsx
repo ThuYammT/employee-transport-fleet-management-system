@@ -1,3 +1,5 @@
+import axios from 'axios'
+
 import {
   useEffect,
   useMemo,
@@ -50,6 +52,11 @@ function VehiclesView() {
   const [saving, setSaving] =
     useState(false)
 
+  const [
+    deletingVehicleId,
+    setDeletingVehicleId,
+  ] = useState<number | null>(null)
+
   const [error, setError] =
     useState('')
 
@@ -57,9 +64,14 @@ function VehiclesView() {
     void fetchVehicles()
   }, [])
 
-  async function fetchVehicles() {
+  async function fetchVehicles(
+    silent = false,
+  ) {
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
+
       setError('')
 
       const data = await getVehicles()
@@ -69,10 +81,15 @@ function VehiclesView() {
       console.error(error)
 
       setError(
-        'Failed to load vehicles.',
+        getApiErrorMessage(
+          error,
+          'Failed to load vehicles.',
+        ),
       )
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }
 
@@ -108,6 +125,12 @@ function VehiclesView() {
     setFormData(emptyForm)
   }
 
+  function resetModal() {
+    setIsModalOpen(false)
+    setEditingVehicleId(null)
+    setFormData(emptyForm)
+  }
+
   async function handleSubmit(
     event: React.FormEvent,
   ) {
@@ -126,13 +149,16 @@ function VehiclesView() {
         await createVehicle(formData)
       }
 
-      closeModal()
-      await fetchVehicles()
+      resetModal()
+      await fetchVehicles(true)
     } catch (error) {
       console.error(error)
 
       setError(
-        'Failed to save vehicle.',
+        getApiErrorMessage(
+          error,
+          'Failed to save vehicle.',
+        ),
       )
     } finally {
       setSaving(false)
@@ -144,22 +170,34 @@ function VehiclesView() {
   ) {
     const confirmed =
       window.confirm(
-        'Are you sure you want to delete this vehicle?',
+        'Delete this vehicle?\n\nRelated fuel logs, maintenance records, issue reports and trips will also be removed.',
       )
 
     if (!confirmed) return
 
     try {
+      setDeletingVehicleId(id)
       setError('')
 
       await deleteVehicle(id)
-      await fetchVehicles()
+
+      setVehicles((current) =>
+        current.filter(
+          (vehicle) =>
+            vehicle.id !== id,
+        ),
+      )
     } catch (error) {
       console.error(error)
 
       setError(
-        'Failed to delete vehicle.',
+        getApiErrorMessage(
+          error,
+          'Failed to delete vehicle.',
+        ),
       )
+    } finally {
+      setDeletingVehicleId(null)
     }
   }
 
@@ -499,14 +537,21 @@ function VehiclesView() {
 
                               <button
                                 type="button"
+                                disabled={
+                                  deletingVehicleId ===
+                                  vehicle.id
+                                }
                                 onClick={() =>
                                   void handleDelete(
                                     vehicle.id,
                                   )
                                 }
-                                className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                                className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                Delete
+                                {deletingVehicleId ===
+                                vehicle.id
+                                  ? 'Deleting...'
+                                  : 'Delete'}
                               </button>
                             </div>
                           </td>
@@ -562,6 +607,11 @@ function VehiclesView() {
               onSubmit={handleSubmit}
               className="space-y-5 p-6"
             >
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
               <FormInput
                 label="Plate number"
                 value={
@@ -573,11 +623,11 @@ function VehiclesView() {
                     plateNumber: value,
                   })
                 }
-                placeholder="e.g. MDY-1999"
+                placeholder="e.g. 1A-1111"
               />
 
               <FormInput
-                label="Vehicle type"
+                label="Vehicle Name"
                 value={
                   formData.vehicleType
                 }
@@ -758,6 +808,32 @@ function StatusBadge({
       {status.replaceAll('_', ' ')}
     </span>
   )
+}
+
+function getApiErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+): string {
+  if (!axios.isAxiosError(error)) {
+    return fallbackMessage
+  }
+
+  const message =
+    error.response?.data?.message
+
+  if (Array.isArray(message)) {
+    return message.join(', ')
+  }
+
+  if (typeof message === 'string') {
+    return message
+  }
+
+  if (!error.response) {
+    return 'Unable to connect to the server.'
+  }
+
+  return fallbackMessage
 }
 
 export default VehiclesView

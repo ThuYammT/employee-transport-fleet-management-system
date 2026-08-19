@@ -329,15 +329,6 @@ export class FuelLogsService {
       )
     }
 
-    if (
-      createFuelLogDto.mileage <
-      vehicle.currentMileage
-    ) {
-      throw new BadRequestException(
-        `Mileage cannot be lower than the vehicle's current mileage of ${vehicle.currentMileage} km`,
-      )
-    }
-
     const fuelDate = new Date(
       createFuelLogDto.fuelDate,
     )
@@ -350,84 +341,37 @@ export class FuelLogsService {
       )
     }
 
-    return this.prisma.$transaction(
-      async (transaction) => {
-        const currentVehicle =
-          await transaction.vehicle.findUnique({
-            where: {
-              id: createFuelLogDto.vehicleId,
-            },
+    return this.prisma.fuelLog.create({
+      data: {
+        vehicleId:
+          createFuelLogDto.vehicleId,
 
-            select: {
-              currentMileage: true,
-            },
-          })
+        driverId:
+          createFuelLogDto.driverId,
 
-        if (!currentVehicle) {
-          throw new NotFoundException(
-            'The selected vehicle no longer exists',
-          )
-        }
+        tripId:
+          createFuelLogDto.tripId,
 
-        if (
-          createFuelLogDto.mileage <
-          currentVehicle.currentMileage
-        ) {
-          throw new BadRequestException(
-            `Mileage cannot be lower than the vehicle's current mileage of ${currentVehicle.currentMileage} km`,
-          )
-        }
+        fuelDate,
 
-        const fuelLog =
-          await transaction.fuelLog.create({
-            data: {
-              vehicleId:
-                createFuelLogDto.vehicleId,
+        liters:
+          createFuelLogDto.liters,
 
-              driverId:
-                createFuelLogDto.driverId,
+        cost: createFuelLogDto.cost,
 
-              tripId:
-                createFuelLogDto.tripId,
+        fuelStation:
+          createFuelLogDto
+            .fuelStation
+            ?.trim() || null,
 
-              fuelDate,
-
-              liters:
-                createFuelLogDto.liters,
-
-              cost: createFuelLogDto.cost,
-
-              mileage:
-                createFuelLogDto.mileage,
-
-              fuelStation:
-                createFuelLogDto
-                  .fuelStation
-                  ?.trim() || null,
-
-              receiptPhoto:
-                createFuelLogDto
-                  .photoUrl
-                  ?.trim() || null,
-            },
-
-            include: fuelLogInclude,
-          })
-
-        await transaction.vehicle.update({
-          where: {
-            id: createFuelLogDto.vehicleId,
-          },
-
-          data: {
-            currentMileage:
-              createFuelLogDto.mileage,
-          },
-        })
-
-        return fuelLog
+        receiptPhoto:
+          createFuelLogDto
+            .photoUrl
+            ?.trim() || null,
       },
-    )
+
+      include: fuelLogInclude,
+    })
   }
 
   async update(
@@ -479,37 +423,7 @@ export class FuelLogsService {
   }
 
   async remove(id: number) {
-    const fuelLog = await this.findOne(id)
-
-    const newerLog =
-      await this.prisma.fuelLog.findFirst({
-        where: {
-          vehicleId: fuelLog.vehicleId,
-
-          OR: [
-            {
-              mileage: {
-                gt: fuelLog.mileage,
-              },
-            },
-            {
-              fuelDate: {
-                gt: fuelLog.fuelDate,
-              },
-            },
-          ],
-        },
-
-        select: {
-          id: true,
-        },
-      })
-
-    if (newerLog) {
-      throw new BadRequestException(
-        'This fuel log cannot be deleted because newer fuel records exist for the vehicle',
-      )
-    }
+    await this.findOne(id)
 
     return this.prisma.fuelLog.delete({
       where: {

@@ -1,4 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
+import {
+  assertNoInProgressTrip,
+  restoreDriverIfIdle,
+} from '../prisma/cascade-delete'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateVehicleDto } from './dto/create-vehicle.dto'
 import { UpdateVehicleDto } from './dto/update-vehicle.dto'
@@ -18,6 +22,9 @@ export class VehiclesService {
         currentMileage: true,
         createdAt: true,
         updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     })
   }
@@ -88,20 +95,80 @@ export class VehiclesService {
   }
 
   async remove(id: number) {
-    await this.findOne(id)
-
-    return this.prisma.vehicle.delete({
+    const vehicle = await this.prisma.vehicle.findUnique({
       where: { id },
       select: {
         id: true,
-        plateNumber: true,
-        vehicleType: true,
-        capacity: true,
-        status: true,
-        currentMileage: true,
-        createdAt: true,
-        updatedAt: true,
+        trips: {
+          select: {
+            id: true,
+            driverId: true,
+            status: true,
+          },
+        },
       },
+    })
+
+    if (!vehicle) {
+      throw new NotFoundException(`Vehicle with ID ${id} not found`)
+    }
+
+    assertNoInProgressTrip(
+      vehicle.trips,
+      'This vehicle cannot be deleted while a trip is in progress',
+    )
+
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.driver.updateMany({
+        where: {
+          assignedVehicleId: id,
+        },
+        data: {
+          assignedVehicleId: null,
+        },
+      })
+
+      await transaction.fuelLog.deleteMany({
+        where: {
+          vehicleId: id,
+        },
+      })
+
+      await transaction.vehicleIssueReport.deleteMany({
+        where: {
+          vehicleId: id,
+        },
+      })
+
+      await transaction.maintenanceLog.deleteMany({
+        where: {
+          vehicleId: id,
+        },
+      })
+
+      await transaction.trip.deleteMany({
+        where: {
+          vehicleId: id,
+        },
+      })
+
+      for (const trip of vehicle.trips) {
+        await restoreDriverIfIdle(transaction, trip.driverId)
+      }
+
+      return transaction.vehicle.delete({
+        where: { id },
+        select: {
+          id: true,
+          plateNumber: true,
+          vehicleType: true,
+          capacity: true,
+          status: true,
+          currentMileage: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
     })
   }
 }

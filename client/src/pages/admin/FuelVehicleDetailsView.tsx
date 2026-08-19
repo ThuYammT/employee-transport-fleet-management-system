@@ -81,7 +81,6 @@ function FuelVehicleDetailsView() {
           .split('T')[0],
       liters: 0,
       cost: 0,
-      mileage: 0,
       fuelStation: '',
       photoUrl: '',
     })
@@ -210,9 +209,6 @@ function FuelVehicleDetailsView() {
       liters: 0,
       cost: 0,
 
-      mileage:
-        vehicle.currentMileage,
-
       fuelStation: '',
       photoUrl: '',
     })
@@ -245,17 +241,6 @@ function FuelVehicleDetailsView() {
       return
     }
 
-    if (
-      formData.mileage <
-      vehicle.currentMileage
-    ) {
-      setError(
-        `Mileage must be at least ${vehicle.currentMileage.toLocaleString()} km.`,
-      )
-
-      return
-    }
-
     try {
       setSaving(true)
       setError('')
@@ -278,11 +263,6 @@ function FuelVehicleDetailsView() {
         cost:
           Number(
             formData.cost,
-          ),
-
-        mileage:
-          Number(
-            formData.mileage,
           ),
 
         fuelStation:
@@ -420,12 +400,7 @@ function FuelVehicleDetailsView() {
                   </h2>
 
                   <p className="mt-2 text-sm text-slate-300">
-                    {
-                      vehicle?.vehicleType
-                    }
-                    {' • '}
-                    {vehicle?.currentMileage.toLocaleString()}{' '}
-                    km
+                    {vehicle?.vehicleType}
                   </p>
                 </div>
 
@@ -508,11 +483,6 @@ function FuelVehicleDetailsView() {
                   />
 
                   <InformationRow
-                    label="Current mileage"
-                    value={`${vehicle?.currentMileage.toLocaleString()} km`}
-                  />
-
-                  <InformationRow
                     label="Assigned driver"
                     value={
                       assignedDriver
@@ -567,10 +537,6 @@ function FuelVehicleDetailsView() {
                             Cost
                           </th>
 
-                          <th className="py-4 pr-6">
-                            Mileage
-                          </th>
-
                           <th className="py-4 pr-6 text-right">
                             Action
                           </th>
@@ -614,11 +580,6 @@ function FuelVehicleDetailsView() {
                               <td className="py-4 pr-6 font-semibold text-slate-900">
                                 {log.cost.toLocaleString()}{' '}
                                 MMK
-                              </td>
-
-                              <td className="py-4 pr-6 text-slate-600">
-                                {log.mileage.toLocaleString()}{' '}
-                                km
                               </td>
 
                               <td className="py-4 pr-6 text-right">
@@ -710,34 +671,19 @@ function FuelVehicleDetailsView() {
                 />
 
                 <FormInput
-                  label="Mileage"
-                  type="number"
+                  label="Fuel station"
                   value={
-                    formData.mileage
+                    formData.fuelStation ??
+                    ''
                   }
                   onChange={(value) =>
                     setFormData({
                       ...formData,
-                      mileage:
-                        Number(value),
+                      fuelStation: value,
                     })
                   }
                 />
               </div>
-
-              <FormInput
-                label="Fuel station"
-                value={
-                  formData.fuelStation ??
-                  ''
-                }
-                onChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    fuelStation: value,
-                  })
-                }
-              />
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormInput

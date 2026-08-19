@@ -17,7 +17,6 @@ const emptyForm: CreateFuelLogData = {
   fuelDate: new Date().toISOString().split('T')[0],
   liters: 0,
   cost: 0,
-  mileage: 0,
   fuelStation: '',
   photoUrl: '',
 }
@@ -112,7 +111,6 @@ function FuelLogsPage() {
       fuelDate: new Date().toISOString().split('T')[0],
       liters: 0,
       cost: 0,
-      mileage: vehicle.currentMileage,
       fuelStation: '',
       photoUrl: '',
     })
@@ -132,15 +130,8 @@ function FuelLogsPage() {
       return
     }
 
-    if (formData.liters <= 0 || formData.cost < 0 || formData.mileage < 0) {
-      setError('Please enter valid fuel amount, cost, and mileage.')
-      return
-    }
-
-    if (vehicle && formData.mileage < vehicle.currentMileage) {
-      setError(
-        `Mileage must be at least ${vehicle.currentMileage.toLocaleString()} km.`,
-      )
+    if (formData.liters <= 0 || formData.cost < 0) {
+      setError('Please enter valid fuel amount and cost.')
       return
     }
 
@@ -159,7 +150,6 @@ function FuelLogsPage() {
         fuelDate: formData.fuelDate,
         liters: Number(formData.liters),
         cost: Number(formData.cost),
-        mileage: Number(formData.mileage),
         fuelStation: formData.fuelStation,
         photoUrl,
       })
@@ -237,7 +227,6 @@ function FuelLogsPage() {
                       <th className="py-4">Vehicle</th>
                       <th className="py-4">Liters</th>
                       <th className="py-4">Cost</th>
-                      <th className="py-4">Mileage</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -261,9 +250,6 @@ function FuelLogsPage() {
                         <td className="py-4 font-semibold">
                           {log.cost.toLocaleString()} MMK
                         </td>
-                        <td className="py-4">
-                          {log.mileage.toLocaleString()} km
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -279,8 +265,7 @@ function FuelLogsPage() {
                   <div>
                     <h3 className="text-xl font-bold">Log Fuel Consumption</h3>
                     <p className="text-sm text-slate-500">
-                      Record your refueling details. Mileage must be at or above
-                      the vehicle&apos;s current mileage.
+                      Record your refueling details.
                     </p>
                   </div>
                   <button
@@ -381,31 +366,6 @@ function FuelLogsPage() {
                         required
                       />
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-slate-700">
-                      Mileage (km)
-                    </label>
-                    <input
-                      type="number"
-                      min={vehicle?.currentMileage ?? 0}
-                      value={formData.mileage || ''}
-                      onChange={(event) =>
-                        setFormData({
-                          ...formData,
-                          mileage: Number(event.target.value),
-                        })
-                      }
-                      className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
-                      required
-                    />
-                    {vehicle && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Current vehicle mileage:{' '}
-                        {vehicle.currentMileage.toLocaleString()} km
-                      </p>
-                    )}
                   </div>
 
                   <div className="flex justify-end gap-3 pt-4">

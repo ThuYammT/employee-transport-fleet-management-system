@@ -14,6 +14,7 @@ import {
 import RouteMap from '../../components/maps/RouteMap'
 
 import {
+  deleteTransportRequest,
   estimateRoute,
   getTransportRequests,
   updateTransportRequest,
@@ -207,6 +208,80 @@ function TransportRequestsView() {
         getApiErrorMessage(
           error,
           'Failed to update request status.',
+        ),
+      )
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  async function handleDelete(
+    request: TransportRequest,
+  ) {
+    if (
+      request.trip?.status ===
+      'IN_PROGRESS'
+    ) {
+      setError(
+        `REQ-${request.id} cannot be deleted while its trip is in progress.`,
+      )
+
+      return
+    }
+
+    const confirmed =
+      window.confirm(
+        `Permanently delete request REQ-${request.id}?\n\nIf a trip is assigned, it will also be removed.`,
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setActionLoadingId(
+        request.id,
+      )
+
+      setError('')
+
+      await deleteTransportRequest(
+        request.id,
+      )
+
+      setRequests((current) =>
+        current.filter(
+          (item) =>
+            item.id !== request.id,
+        ),
+      )
+
+      if (
+        selectedRequest?.id ===
+        request.id
+      ) {
+        setSelectedRequest(null)
+      }
+
+      if (request.trip) {
+        const [
+          driverData,
+          vehicleData,
+        ] = await Promise.all([
+          getDrivers(),
+          getVehicles(),
+        ])
+
+        setDrivers(driverData)
+        setVehicles(vehicleData)
+      }
+    } catch (error) {
+      console.error(error)
+
+      setError(
+        getApiErrorMessage(
+          error,
+          'Failed to delete the request.',
         ),
       )
     } finally {
@@ -871,6 +946,11 @@ function TransportRequestsView() {
                                         request,
                                       )
                                     }
+                                    onDelete={() =>
+                                      void handleDelete(
+                                        request,
+                                      )
+                                    }
                                   />
                                 </div>
                               </td>
@@ -979,6 +1059,7 @@ function RequestActions({
   onApprove,
   onReject,
   onAssign,
+  onDelete,
 }: {
   request: TransportRequest
   isProcessing: boolean
@@ -986,6 +1067,7 @@ function RequestActions({
   onApprove: () => void
   onReject: () => void
   onAssign: () => void
+  onDelete: () => void
 }) {
   const buttonRef =
     useRef<HTMLButtonElement | null>(
@@ -1199,20 +1281,28 @@ function RequestActions({
                 </>
               )}
 
-              {/* FINAL STATUS */}
+              <div className="my-1 border-t border-slate-100" />
 
-              {(request.status ===
-                'REJECTED' ||
-                request.status ===
-                  'CANCELLED') && (
-                <>
-                  <div className="my-1 border-t border-slate-100" />
-
-                  <div className="px-4 py-2.5 text-xs text-slate-400">
-                    No further actions
-                  </div>
-                </>
-              )}
+              <button
+                type="button"
+                disabled={
+                  isProcessing ||
+                  request.trip
+                    ?.status ===
+                    'IN_PROGRESS'
+                }
+                onClick={() => {
+                  setOpen(false)
+                  onDelete()
+                }}
+                className="flex w-full items-center px-4 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {request.trip
+                  ?.status ===
+                'IN_PROGRESS'
+                  ? 'Cannot delete in-progress trip'
+                  : 'Delete request'}
+              </button>
             </div>
           </>,
           document.body,

@@ -41,7 +41,7 @@ const menuItems = [
     icon: '◇',
   },
   {
-    label: 'Access Controls',
+    label: 'User Management',
     path: '/admin/users',
     icon: '◌',
   },
@@ -85,11 +85,11 @@ function DashboardLayout() {
 
             <div>
               <h1 className="text-[15px] font-semibold tracking-tight text-slate-950">
-                FleetPulse
+                Fleet Pulse
               </h1>
 
               <p className="text-[11px] font-medium text-slate-400">
-                Fleet Operations
+                Fleet Operations and Management
               </p>
             </div>
           </div>

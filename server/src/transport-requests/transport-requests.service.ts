@@ -9,8 +9,10 @@ import {
 import {
   Prisma,
   TransportRequestStatus,
+  TripStatus,
 } from '@prisma/client'
 
+import { deleteTripGraph } from '../prisma/cascade-delete'
 import { PrismaService } from '../prisma/prisma.service'
 
 import { CreateTransportRequestDto } from './dto/create-transport-request.dto'
@@ -574,17 +576,39 @@ export class TransportRequestsService {
     const request =
       await this.findOne(id)
 
-    if (request.trip) {
+    if (
+      request.trip?.status ===
+      TripStatus.IN_PROGRESS
+    ) {
       throw new BadRequestException(
-        'A request with an assigned trip cannot be deleted',
+        'A request with an in-progress trip cannot be deleted',
       )
     }
 
-    return this.prisma.transportRequest.delete({
-      where: {
-        id,
+    return this.prisma.$transaction(
+      async (transaction) => {
+        if (request.trip) {
+          await deleteTripGraph(
+            transaction,
+            {
+              id: request.trip.id,
+              driverId:
+                request.trip.driverId,
+              vehicleId:
+                request.trip.vehicleId,
+            },
+          )
+        }
+
+        return transaction.transportRequest.delete(
+          {
+            where: {
+              id,
+            },
+          },
+        )
       },
-    })
+    )
   }
 
   private mapGeocodingFeature(
