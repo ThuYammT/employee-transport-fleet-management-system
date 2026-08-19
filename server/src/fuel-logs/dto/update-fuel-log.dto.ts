@@ -1,6 +1,5 @@
 import {
   IsDateString,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -21,6 +20,10 @@ export class UpdateFuelLogDto {
   @IsNumber()
   @Min(0)
   cost?: number
+
+  @IsOptional()
+  @IsString()
+  fuelStation?: string
 
   @IsOptional()
   @IsString()

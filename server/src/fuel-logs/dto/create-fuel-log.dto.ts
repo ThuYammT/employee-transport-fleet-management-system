@@ -1,7 +1,6 @@
 import {
   IsDateString,
   IsInt,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -36,6 +35,10 @@ export class CreateFuelLogDto {
   @IsInt()
   @Min(0)
   mileage: number
+
+  @IsOptional()
+  @IsString()
+  fuelStation?: string
 
   @IsOptional()
   @IsString()
