@@ -18,6 +18,7 @@ const emptyForm: CreateFuelLogData = {
   liters: 0,
   cost: 0,
   mileage: 0,
+  fuelStation: '',
   photoUrl: '',
 }
 
@@ -112,6 +113,7 @@ function FuelLogsPage() {
       liters: 0,
       cost: 0,
       mileage: vehicle.currentMileage,
+      fuelStation: '',
       photoUrl: '',
     })
     setIsModalOpen(true)
@@ -158,6 +160,7 @@ function FuelLogsPage() {
         liters: Number(formData.liters),
         cost: Number(formData.cost),
         mileage: Number(formData.mileage),
+        fuelStation: formData.fuelStation,
         photoUrl,
       })
 
@@ -318,11 +321,31 @@ function FuelLogsPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-semibold text-slate-700">
-                        Liters
-                      </label>
+                  <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Fuel Station
+                  </label>
+
+                  <input
+                    type="text"
+                    value={formData.fuelStation ?? ''}
+                    onChange={(event) =>
+                      setFormData({
+                        ...formData,
+                        fuelStation: event.target.value,
+                      })
+                    }
+                    placeholder="Enter fuel station"
+                    className="mt-2 w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">
+                      Liters
+                    </label>
+
                       <input
                         type="number"
                         step="0.1"
