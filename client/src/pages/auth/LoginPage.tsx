@@ -7,6 +7,7 @@ import {
 
 import {
   Link,
+  useLocation,
   useNavigate,
 } from 'react-router-dom'
 
@@ -25,6 +26,10 @@ type LoginFormData = {
   password: string
 }
 
+type LoginLocationState = {
+  registrationMessage?: string
+}
+
 const initialFormData:
   LoginFormData = {
   email: '',
@@ -34,6 +39,14 @@ const initialFormData:
 function LoginPage() {
   const navigate =
     useNavigate()
+
+  const location =
+    useLocation()
+
+  const locationState =
+    location.state as
+      | LoginLocationState
+      | null
 
   const [
     formData,
@@ -46,17 +59,30 @@ function LoginPage() {
   const [
     showPassword,
     setShowPassword,
-  ] = useState(false)
+  ] =
+    useState(false)
 
   const [
     submitting,
     setSubmitting,
-  ] = useState(false)
+  ] =
+    useState(false)
 
   const [
     error,
     setError,
-  ] = useState('')
+  ] =
+    useState('')
+
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] =
+    useState(
+      locationState
+        ?.registrationMessage ??
+        '',
+    )
 
   useEffect(() => {
     const currentUser =
@@ -124,6 +150,7 @@ function LoginPage() {
       const user =
         await login({
           email,
+
           password:
             formData.password,
         })
@@ -156,14 +183,12 @@ function LoginPage() {
 
   return (
     <main className="grid min-h-screen bg-[#f6f7f9] lg:grid-cols-[1.08fr_0.92fr]">
-      {/* LEFT BRAND PANEL */}
+      {/* LEFT */}
 
       <section className="relative hidden overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="pointer-events-none absolute -right-32 top-20 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl" />
 
         <div className="pointer-events-none absolute -bottom-40 left-20 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
-
-        {/* BRAND */}
 
         <div className="relative z-10 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sm font-bold text-slate-950">
@@ -182,8 +207,6 @@ function LoginPage() {
           </div>
         </div>
 
-        {/* MAIN MESSAGE */}
-
         <div className="relative z-10 max-w-xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-300">
             Fleet operations,
@@ -198,40 +221,36 @@ function LoginPage() {
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-300">
             Fleet Pulse brings
             transport requests,
-            driver assignments,
-            vehicle activity,
+            drivers, vehicles,
             maintenance and fleet
             operations into one
             organised workspace.
           </p>
 
-          {/* OPERATION HIGHLIGHTS */}
-
           <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.05] p-5 backdrop-blur-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Built for daily fleet operations
+              Built for daily fleet
+              operations
             </p>
 
             <div className="mt-5 space-y-5">
               <HighlightItem
                 title="Transport Requests"
-                description="Plan, approve and track employee transport from request to trip completion."
+                description="Plan, approve and track employee transportation."
               />
 
               <HighlightItem
                 title="Vehicle & Driver Coordination"
-                description="Keep vehicle assignments organised and prevent conflicts during active trips."
+                description="Keep vehicle and driver assignments organised."
               />
 
               <HighlightItem
                 title="Fleet Activity"
-                description="Track trips, fuel usage, reported vehicle issues and maintenance from one place."
+                description="Track trips, fuel, vehicle issues and maintenance."
               />
             </div>
           </div>
         </div>
-
-        {/* FOOTER */}
 
         <div className="relative z-10 flex items-center justify-between text-xs text-slate-500">
           <p>
@@ -245,12 +264,10 @@ function LoginPage() {
         </div>
       </section>
 
-      {/* RIGHT LOGIN PANEL */}
+      {/* LOGIN */}
 
       <section className="flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-md">
-          {/* MOBILE BRAND */}
-
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-xs font-bold text-white">
               FP
@@ -266,8 +283,6 @@ function LoginPage() {
               </p>
             </div>
           </div>
-
-          {/* LOGIN CARD */}
 
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
             <div className="mb-8">
@@ -286,7 +301,35 @@ function LoginPage() {
               </p>
             </div>
 
-            {/* ERROR */}
+            {successMessage && (
+              <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-800">
+                      Registration received
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-emerald-700">
+                      {
+                        successMessage
+                      }
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSuccessMessage(
+                        '',
+                      )
+                    }
+                    className="text-sm font-semibold text-emerald-700"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div
@@ -296,8 +339,6 @@ function LoginPage() {
                 {error}
               </div>
             )}
-
-            {/* FORM */}
 
             <form
               onSubmit={
@@ -378,8 +419,6 @@ function LoginPage() {
               </button>
             </form>
 
-            {/* SIGN UP */}
-
             <div className="my-7 border-t border-slate-100" />
 
             <p className="text-center text-sm text-slate-500">
@@ -389,19 +428,17 @@ function LoginPage() {
                 to="/signup"
                 className="font-semibold text-blue-600 transition hover:text-blue-700"
               >
-                Create account
+                Register
               </Link>
             </p>
 
             <p className="mt-5 text-center text-xs leading-5 text-slate-400">
-              Driver and
-              administrator accounts
-              are managed internally
-              by Fleet Pulse.
+              New employee accounts
+              require administrator
+              approval before access
+              is granted.
             </p>
           </div>
-
-          {/* SMALL FOOTER */}
 
           <p className="mt-6 text-center text-xs text-slate-400">
             Fleet Pulse • Company
@@ -413,10 +450,6 @@ function LoginPage() {
     </main>
   )
 }
-
-/* =========================================================
-   LEFT PANEL HIGHLIGHT
-========================================================= */
 
 function HighlightItem({
   title,
@@ -443,10 +476,6 @@ function HighlightItem({
     </div>
   )
 }
-
-/* =========================================================
-   FORM FIELD
-========================================================= */
 
 function FormField({
   label,
@@ -497,10 +526,6 @@ function FormField({
     </div>
   )
 }
-
-/* =========================================================
-   API ERROR
-========================================================= */
 
 function getApiErrorMessage(
   error: unknown,

@@ -53,6 +53,10 @@ export class AuthService {
       AuditLogsService,
   ) {}
 
+  /* =====================================================
+     EMPLOYEE REGISTRATION
+  ===================================================== */
+
   async register(
     registerDto: RegisterDto,
     ipAddress?: string | null,
@@ -84,6 +88,17 @@ export class AuthService {
       )
 
     try {
+      /*
+       * IMPORTANT:
+       *
+       * Public registration creates
+       * EMPLOYEE accounts only.
+       *
+       * New employees start as
+       * INACTIVE so an administrator
+       * must approve them first.
+       */
+
       const user =
         await this.prisma.user.create({
           data: {
@@ -100,13 +115,11 @@ export class AuthService {
                 ?.trim() ||
               null,
 
-            // Public registration is
-            // always employee-only.
             role:
               UserRole.EMPLOYEE,
 
             status:
-              UserStatus.ACTIVE,
+              UserStatus.INACTIVE,
           },
 
           select: {
@@ -132,13 +145,18 @@ export class AuthService {
           AuditAction.ACCOUNT_CREATED,
 
         description:
-          `${user.name} created an employee account.`,
+          `${user.name} registered an employee account and is awaiting administrator approval.`,
 
         ipAddress,
         userAgent,
       })
 
-      return user
+      return {
+        ...user,
+
+        message:
+          'Account created successfully. Your account is awaiting administrator approval.',
+      }
     } catch (error) {
       this.handleDuplicateEmailError(
         error,
@@ -147,6 +165,10 @@ export class AuthService {
       throw error
     }
   }
+
+  /* =====================================================
+     LOGIN
+  ===================================================== */
 
   async login(
     loginDto: LoginDto,
@@ -184,10 +206,25 @@ export class AuthService {
       )
     }
 
+    /*
+     * Newly registered employees
+     * cannot log in until an admin
+     * activates their account.
+     */
+
     if (
       user.status !==
       UserStatus.ACTIVE
     ) {
+      if (
+        user.role ===
+        UserRole.EMPLOYEE
+      ) {
+        throw new UnauthorizedException(
+          'Your employee account is inactive or awaiting administrator approval.',
+        )
+      }
+
       throw new UnauthorizedException(
         'Your account is currently inactive',
       )
@@ -223,6 +260,10 @@ export class AuthService {
         user.updatedAt,
     }
   }
+
+  /* =====================================================
+     LOGOUT
+  ===================================================== */
 
   async logout(
     logoutDto: LogoutDto,
@@ -273,6 +314,10 @@ export class AuthService {
     }
   }
 
+  /* =====================================================
+     INITIAL ADMIN SETUP STATUS
+  ===================================================== */
+
   async getSetupStatus() {
     const existingAdmin =
       await this.prisma.user.findFirst({
@@ -301,6 +346,10 @@ export class AuthService {
           16,
     }
   }
+
+  /* =====================================================
+     INITIAL ADMIN
+  ===================================================== */
 
   async setupFirstAdmin(
     setupAdminDto:
@@ -449,6 +498,10 @@ export class AuthService {
     }
   }
 
+  /* =====================================================
+     SETUP KEY
+  ===================================================== */
+
   private setupKeysMatch(
     submittedKey: string,
     configuredKey: string,
@@ -478,6 +531,10 @@ export class AuthService {
     )
   }
 
+  /* =====================================================
+     AUDIT
+  ===================================================== */
+
   private async safeCreateAuditLog(
     data: {
       actorUserId?:
@@ -505,16 +562,20 @@ export class AuthService {
       )
     } catch (error) {
       /*
-       * Audit logging should never
-       * prevent a valid login/logout
-       * from completing.
+       * Audit logging should not stop
+       * authentication from working.
        */
+
       console.error(
         'Unable to create audit log:',
         error,
       )
     }
   }
+
+  /* =====================================================
+     PRISMA ERRORS
+  ===================================================== */
 
   private handleDuplicateEmailError(
     error: unknown,

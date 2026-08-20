@@ -219,10 +219,6 @@ function UsersView() {
     auditSearch,
   ])
 
-  /* =====================================================
-     LOAD ACCOUNTS
-  ===================================================== */
-
   async function loadUsers() {
     try {
       setLoadingAccounts(
@@ -252,10 +248,6 @@ function UsersView() {
       )
     }
   }
-
-  /* =====================================================
-     LOAD AUDIT
-  ===================================================== */
 
   async function loadAuditLogs() {
     try {
@@ -288,11 +280,6 @@ function UsersView() {
         result.pagination,
       )
 
-      /*
-       * If data was removed and the
-       * current page is now too high,
-       * move back to the final page.
-       */
       if (
         auditPage >
         result.pagination
@@ -374,8 +361,27 @@ function UsersView() {
       [users],
     )
 
+  /*
+   * Public employee registrations
+   * start INACTIVE, so these are
+   * shown as pending approvals.
+   */
+
+  const pendingEmployees =
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.role ===
+              'EMPLOYEE' &&
+            user.status ===
+              'INACTIVE',
+        ),
+      [users],
+    )
+
   /* =====================================================
-     ACCOUNT FILTER
+     FILTER ACCOUNTS
   ===================================================== */
 
   const filteredUsers =
@@ -589,10 +595,6 @@ function UsersView() {
         emptyAdminForm,
       )
 
-      /*
-       * New admin also creates
-       * an audit entry.
-       */
       await refreshAll()
     } catch (error) {
       console.error(error)
@@ -611,7 +613,7 @@ function UsersView() {
   }
 
   /* =====================================================
-     ACTIVATE / DEACTIVATE
+     APPROVE / ACTIVATE / DEACTIVATE
   ===================================================== */
 
   async function handleAccountStatus(
@@ -641,10 +643,17 @@ function UsersView() {
         ? 'deactivate'
         : 'activate'
 
+    const actionLabel =
+      !isActive &&
+      user.role ===
+        'EMPLOYEE'
+        ? 'approve'
+        : action
+
     const confirmed =
       window.confirm(
         `${capitalize(
-          action,
+          actionLabel,
         )} ${user.name}'s account?`,
       )
 
@@ -678,7 +687,7 @@ function UsersView() {
       setError(
         getApiErrorMessage(
           error,
-          `Failed to ${action} the account.`,
+          `Failed to ${actionLabel} the account.`,
         ),
       )
     } finally {
@@ -687,10 +696,6 @@ function UsersView() {
       )
     }
   }
-
-  /* =====================================================
-     AUDIT RANGE
-  ===================================================== */
 
   const auditStart =
     auditPagination.total ===
@@ -720,8 +725,9 @@ function UsersView() {
 
           <p className="mt-0.5 text-sm text-slate-500">
             Manage Fleet Pulse
-            accounts and review
-            security activity.
+            accounts, employee
+            approvals and security
+            activity.
           </p>
         </div>
 
@@ -770,20 +776,19 @@ function UsersView() {
               </h2>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                Manage system
-                accounts, control
-                access and review
-                important security
-                events without
-                loading the entire
-                audit history.
+                Approve new employee
+                registrations,
+                manage account
+                availability and
+                review important
+                access events.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <HeroMetric
-                label="Active Accounts"
-                value={`${activeAccounts}`}
+                label="Pending Approval"
+                value={`${pendingEmployees.length}`}
               />
 
               <HeroMetric
@@ -800,7 +805,7 @@ function UsersView() {
           </div>
         )}
 
-        {/* ACCOUNT STATS */}
+        {/* STATS */}
 
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
@@ -836,7 +841,103 @@ function UsersView() {
           />
         </div>
 
-        {/* MAIN */}
+        {/* PENDING APPROVALS */}
+
+        {pendingEmployees.length >
+          0 && (
+          <section className="mb-6 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-amber-100 bg-amber-50/70 px-6 py-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-600">
+                  Action required
+                </p>
+
+                <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                  Employee Account
+                  Approvals
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  These employees
+                  cannot access Fleet
+                  Pulse until their
+                  accounts are
+                  approved.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
+                {
+                  pendingEmployees.length
+                }{' '}
+                pending
+              </span>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {pendingEmployees.map(
+                (user) => (
+                  <div
+                    key={
+                      user.id
+                    }
+                    className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-50 text-xs font-bold text-amber-700">
+                        {getInitials(
+                          user.name,
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {
+                            user.name
+                          }
+                        </p>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          {
+                            user.email
+                          }
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-400">
+                          Registered{' '}
+                          {formatDateTime(
+                            user.createdAt,
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={
+                        actionLoading ===
+                        user.id
+                      }
+                      onClick={() =>
+                        void handleAccountStatus(
+                          user,
+                        )
+                      }
+                      className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {actionLoading ===
+                      user.id
+                        ? 'Approving...'
+                        : 'Approve Account'}
+                    </button>
+                  </div>
+                ),
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* MAIN ACCOUNT/AUDIT SECTION */}
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex border-b border-slate-200 px-6 pt-3">
@@ -872,8 +973,6 @@ function UsersView() {
           {activeTab ===
           'ACCOUNTS' ? (
             <>
-              {/* ACCOUNT FILTERS */}
-
               <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-wrap gap-2">
                   {(
@@ -934,7 +1033,7 @@ function UsersView() {
                     </option>
 
                     <option value="INACTIVE">
-                      Inactive
+                      Pending / Inactive
                     </option>
                   </select>
 
@@ -978,7 +1077,7 @@ function UsersView() {
                           Role
                         </th>
 
-                        <th className="w-[130px] py-4 pr-6">
+                        <th className="w-[150px] py-4 pr-6">
                           Status
                         </th>
 
@@ -994,7 +1093,7 @@ function UsersView() {
                           Last Updated
                         </th>
 
-                        <th className="w-[170px] py-4 pr-6 text-right">
+                        <th className="w-[190px] py-4 pr-6 text-right">
                           Actions
                         </th>
                       </tr>
@@ -1009,6 +1108,12 @@ function UsersView() {
                           const isSelf =
                             currentUser?.id ===
                             user.id
+
+                          const pendingEmployee =
+                            user.role ===
+                              'EMPLOYEE' &&
+                            user.status ===
+                              'INACTIVE'
 
                           return (
                             <tr
@@ -1058,11 +1163,17 @@ function UsersView() {
                               </td>
 
                               <td className="py-4 pr-6">
-                                <AccountStatusBadge
-                                  status={
-                                    user.status
-                                  }
-                                />
+                                {pendingEmployee ? (
+                                  <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                                    Pending Approval
+                                  </span>
+                                ) : (
+                                  <AccountStatusBadge
+                                    status={
+                                      user.status
+                                    }
+                                  />
+                                )}
                               </td>
 
                               <td className="py-4 pr-6 text-slate-600">
@@ -1105,7 +1216,9 @@ function UsersView() {
                                         user.status ===
                                         'ACTIVE'
                                           ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'
-                                          : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                          : pendingEmployee
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                            : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
                                       }`}
                                     >
                                       {actionLoading ===
@@ -1114,7 +1227,9 @@ function UsersView() {
                                         : user.status ===
                                             'ACTIVE'
                                           ? 'Deactivate'
-                                          : 'Activate'}
+                                          : pendingEmployee
+                                            ? 'Approve Account'
+                                            : 'Activate'}
                                     </button>
                                   )}
                                 </div>
@@ -1130,8 +1245,6 @@ function UsersView() {
             </>
           ) : (
             <>
-              {/* AUDIT FILTERS */}
-
               <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 xl:flex-row xl:items-end xl:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
@@ -1139,10 +1252,11 @@ function UsersView() {
                   </p>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Showing only 20
-                    events at a time
-                    for efficient
-                    audit review.
+                    Login, logout,
+                    registrations,
+                    approvals and
+                    account-management
+                    activity.
                   </p>
                 </div>
 
@@ -1189,7 +1303,7 @@ function UsersView() {
                     </option>
 
                     <option value="ACCOUNT_CREATED">
-                      Account Created
+                      Account Registration
                     </option>
 
                     <option value="ACCOUNT_UPDATED">
@@ -1197,7 +1311,7 @@ function UsersView() {
                     </option>
 
                     <option value="ACCOUNT_ACTIVATED">
-                      Account Activated
+                      Account Approved / Activated
                     </option>
 
                     <option value="ACCOUNT_DEACTIVATED">
@@ -1244,8 +1358,6 @@ function UsersView() {
                 </form>
               </div>
 
-              {/* AUDIT PAGINATION ABOVE */}
-
               {!loadingAudit &&
                 auditPagination.total >
                   0 && (
@@ -1271,7 +1383,7 @@ function UsersView() {
                 0 ? (
                 <EmptyState
                   title="No audit activity"
-                  description="No security events match your current search and filter."
+                  description="No events match your current filters."
                 />
               ) : (
                 <div className="overflow-x-auto">
@@ -1518,7 +1630,7 @@ function AuditPaginationBar({
                   page,
                 )
               }
-              className={`min-w-9 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+              className={`min-w-9 rounded-lg px-3 py-2 text-xs font-semibold ${
                 page ===
                 pagination.page
                   ? 'bg-slate-950 text-white'
@@ -1603,7 +1715,7 @@ function getVisiblePages(
 }
 
 /* =========================================================
-   CREATE ADMIN MODAL
+   CREATE ADMIN
 ========================================================= */
 
 function CreateAdminModal({
@@ -1842,7 +1954,7 @@ function CreateAdminModal({
 }
 
 /* =========================================================
-   SMALL COMPONENTS
+   UI COMPONENTS
 ========================================================= */
 
 function TabButton({
@@ -1935,13 +2047,10 @@ function StatCard({
   const styles = {
     slate:
       'bg-slate-100 text-slate-700',
-
     blue:
       'bg-blue-50 text-blue-700',
-
     green:
       'bg-emerald-50 text-emerald-700',
-
     amber:
       'bg-amber-50 text-amber-700',
   }
@@ -1981,10 +2090,8 @@ function RoleBadge({
     > = {
     ADMIN:
       'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
-
     EMPLOYEE:
       'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
-
     DRIVER:
       'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
   }
@@ -2035,22 +2142,16 @@ function AuditActionBadge({
     > = {
     LOGIN:
       'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-
     LOGOUT:
       'bg-slate-100 text-slate-700 ring-1 ring-slate-200',
-
     ACCOUNT_CREATED:
       'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
-
     ACCOUNT_UPDATED:
       'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
-
     ACCOUNT_ACTIVATED:
       'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-
     ACCOUNT_DEACTIVATED:
       'bg-red-50 text-red-700 ring-1 ring-red-200',
-
     ADMIN_CREATED:
       'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
   }
@@ -2123,10 +2224,6 @@ function EmptyState({
 
 const inputClass =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-
-/* =========================================================
-   HELPERS
-========================================================= */
 
 function getInitials(
   name: string,

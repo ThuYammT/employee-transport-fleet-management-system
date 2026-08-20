@@ -17,7 +17,6 @@ import {
 import {
   getCurrentUser,
   getPortalPath,
-  saveCurrentUser,
 } from '../../utils/user-session'
 
 type SignUpFormData = {
@@ -52,17 +51,20 @@ function SignUpPage() {
   const [
     showPassword,
     setShowPassword,
-  ] = useState(false)
+  ] =
+    useState(false)
 
   const [
     submitting,
     setSubmitting,
-  ] = useState(false)
+  ] =
+    useState(false)
 
   const [
     error,
     setError,
-  ] = useState('')
+  ] =
+    useState('')
 
   useEffect(() => {
     const currentUser =
@@ -153,28 +155,35 @@ function SignUpPage() {
       setSubmitting(true)
       setError('')
 
-      const employee =
-        await register({
-          name,
-          email,
+      /*
+       * Registration creates an
+       * INACTIVE employee account.
+       *
+       * DO NOT save it to localStorage.
+       */
 
-          password:
-            formData.password,
+      await register({
+        name,
+        email,
 
-          phone:
-            formData.phone
-              .trim() ||
-            undefined,
-        })
+        password:
+          formData.password,
 
-      saveCurrentUser(
-        employee,
-      )
+        phone:
+          formData.phone
+            .trim() ||
+          undefined,
+      })
 
       navigate(
-        '/employee',
+        '/login',
         {
           replace: true,
+
+          state: {
+            registrationMessage:
+              'Your Fleet Pulse account was created successfully. Please wait for an administrator to approve your account before signing in.',
+          },
         },
       )
     } catch (error) {
@@ -193,7 +202,7 @@ function SignUpPage() {
 
   return (
     <main className="grid min-h-screen bg-[#f6f7f9] lg:grid-cols-[1.08fr_0.92fr]">
-      {/* BRAND */}
+      {/* LEFT PANEL */}
 
       <section className="relative hidden overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="pointer-events-none absolute -right-32 top-20 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl" />
@@ -226,12 +235,12 @@ function SignUpPage() {
           </h2>
 
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-300">
-            Create an employee
-            account to request
-            transportation, select
-            routes on the map and
-            follow approval progress
-            from one workspace.
+            Create your employee
+            account and request
+            transportation through
+            Fleet Pulse after your
+            account has been approved
+            by fleet management.
           </p>
 
           <div className="mt-10 space-y-3">
@@ -253,7 +262,8 @@ function SignUpPage() {
         </div>
 
         <p className="relative z-10 text-xs text-slate-500">
-          Employee accounts only •
+          Employee accounts require
+          administrator approval •
           Fleet Pulse
         </p>
       </section>
@@ -289,10 +299,11 @@ function SignUpPage() {
               </h1>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Join Fleet Pulse to
-                submit and monitor
-                workplace transport
-                requests.
+                Register for Fleet
+                Pulse. Your account
+                will be reviewed by an
+                administrator before
+                access is granted.
               </p>
             </div>
 
@@ -397,13 +408,19 @@ function SignUpPage() {
                 }
               />
 
-              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700">
-                This registration
-                creates an Employee
-                account. Driver and
-                Administrator accounts
-                are created internally
-                by fleet management.
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-800">
+                  Administrator approval required
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-amber-700">
+                  After registration,
+                  your account will
+                  remain unavailable
+                  until a Fleet Pulse
+                  administrator
+                  approves it.
+                </p>
               </div>
 
               <button
@@ -415,13 +432,13 @@ function SignUpPage() {
               >
                 {submitting
                   ? 'Creating Account...'
-                  : 'Create Fleet Pulse Account'}
+                  : 'Submit Registration'}
               </button>
             </form>
 
             <p className="mt-7 text-center text-sm text-slate-500">
               Already have an
-              account?{' '}
+              approved account?{' '}
               <Link
                 to="/login"
                 className="font-semibold text-blue-600 hover:text-blue-700"
