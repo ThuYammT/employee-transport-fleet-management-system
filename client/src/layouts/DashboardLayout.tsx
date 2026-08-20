@@ -44,6 +44,12 @@ const menuItems = [
     label: 'User Management',
     path: '/admin/users',
     icon: '◌',
+    
+  },
+  {
+    label: 'Profile',
+    path: '/admin/profile',
+    icon: '○',
   },
 ]
 

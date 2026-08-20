@@ -10,6 +10,7 @@ import DashboardLayout from './layouts/DashboardLayout'
 import DriverLayout from './layouts/DriverLayout'
 import EmployeeLayout from './layouts/EmployeeLayout'
 
+import AdminProfilePage from './pages/admin/AdminProfilePage'
 import DashboardHome from './pages/admin/DashboardHome'
 import DriversView from './pages/admin/DriversView'
 import FuelLogsView from './pages/admin/FuelLogsView'
@@ -105,6 +106,10 @@ function App() {
         <Route
           path="vehicles"
           element={<VehiclesView />}
+        />
+        <Route
+          path="profile"
+          element={<AdminProfilePage />}
         />
 
         {/* Drivers */}

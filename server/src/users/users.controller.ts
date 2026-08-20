@@ -7,33 +7,19 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common'
 
-import {
-  AuditActorDto,
-} from './dto/audit-actor.dto'
-
-import {
-  CreateAdminDto,
-} from './dto/create-admin.dto'
-
-import {
-  CreateUserDto,
-} from './dto/create-user.dto'
-
-import {
-  UpdateUserDto,
-} from './dto/update-user.dto'
-
-import {
-  UsersService,
-} from './users.service'
+import { AuditActorDto } from './dto/audit-actor.dto'
+import { CreateAdminDto } from './dto/create-admin.dto'
+import { CreateUserDto } from './dto/create-user.dto'
+import { UpdateUserDto } from './dto/update-user.dto'
+import { UsersService } from './users.service'
 
 @Controller('users')
 export class UsersController {
   constructor(
-    private readonly usersService:
-      UsersService,
+    private readonly usersService: UsersService,
   ) {}
 
   @Get()
@@ -41,17 +27,10 @@ export class UsersController {
     return this.usersService.findAll()
   }
 
-  /*
-   * IMPORTANT:
-   * Keep static routes above
-   * @Get(':id').
-   */
-
   @Post('admin')
   createAdmin(
     @Body()
-    createAdminDto:
-      CreateAdminDto,
+    createAdminDto: CreateAdminDto,
   ) {
     return this.usersService.createAdmin(
       createAdminDto,
@@ -60,15 +39,11 @@ export class UsersController {
 
   @Patch(':id/activate')
   activate(
-    @Param(
-      'id',
-      ParseIntPipe,
-    )
+    @Param('id', ParseIntPipe)
     id: number,
 
     @Body()
-    auditActorDto:
-      AuditActorDto,
+    auditActorDto: AuditActorDto,
   ) {
     return this.usersService.activate(
       id,
@@ -78,15 +53,11 @@ export class UsersController {
 
   @Patch(':id/deactivate')
   deactivate(
-    @Param(
-      'id',
-      ParseIntPipe,
-    )
+    @Param('id', ParseIntPipe)
     id: number,
 
     @Body()
-    auditActorDto:
-      AuditActorDto,
+    auditActorDto: AuditActorDto,
   ) {
     return this.usersService.deactivate(
       id,
@@ -96,22 +67,16 @@ export class UsersController {
 
   @Get(':id')
   findOne(
-    @Param(
-      'id',
-      ParseIntPipe,
-    )
+    @Param('id', ParseIntPipe)
     id: number,
   ) {
-    return this.usersService.findOne(
-      id,
-    )
+    return this.usersService.findOne(id)
   }
 
   @Post()
   create(
     @Body()
-    createUserDto:
-      CreateUserDto,
+    createUserDto: CreateUserDto,
   ) {
     return this.usersService.create(
       createUserDto,
@@ -120,15 +85,11 @@ export class UsersController {
 
   @Patch(':id')
   update(
-    @Param(
-      'id',
-      ParseIntPipe,
-    )
+    @Param('id', ParseIntPipe)
     id: number,
 
     @Body()
-    updateUserDto:
-      UpdateUserDto,
+    updateUserDto: UpdateUserDto,
   ) {
     return this.usersService.update(
       id,
@@ -138,14 +99,18 @@ export class UsersController {
 
   @Delete(':id')
   remove(
-    @Param(
-      'id',
+    @Param('id', ParseIntPipe)
+    id: number,
+
+    @Query(
+      'actorUserId',
       ParseIntPipe,
     )
-    id: number,
+    actorUserId: number,
   ) {
     return this.usersService.remove(
       id,
+      actorUserId,
     )
   }
 }

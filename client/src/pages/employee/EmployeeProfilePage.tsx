@@ -94,6 +94,8 @@ function EmployeeProfilePage() {
       saveCurrentUser({
         ...currentUser,
         ...employeeData,
+        phone:
+          employeeData.phone ?? undefined,
       })
     } catch (error) {
       console.error(error)

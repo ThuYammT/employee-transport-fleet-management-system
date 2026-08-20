@@ -1411,35 +1411,7 @@ function StatCard({
   )
 }
 
-function WorkflowCard({
-  number,
-  title,
-  description,
-}: {
-  number: string
-  title: string
-  description: string
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-xs font-bold text-white">
-          {number}
-        </div>
 
-        <div>
-          <p className="font-semibold text-slate-800">
-            {title}
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            {description}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function VehicleMetric({
   label,

@@ -15,34 +15,18 @@ import {
 
 import * as bcrypt from 'bcrypt'
 
-import {
-  AuditLogsService,
-} from '../audit-logs/audit-logs.service'
+import { AuditLogsService } from '../audit-logs/audit-logs.service'
+import { PrismaService } from '../prisma/prisma.service'
 
-import {
-  PrismaService,
-} from '../prisma/prisma.service'
-
-import {
-  CreateAdminDto,
-} from './dto/create-admin.dto'
-
-import {
-  CreateUserDto,
-} from './dto/create-user.dto'
-
-import {
-  UpdateUserDto,
-} from './dto/update-user.dto'
+import { CreateAdminDto } from './dto/create-admin.dto'
+import { CreateUserDto } from './dto/create-user.dto'
+import { UpdateUserDto } from './dto/update-user.dto'
 
 @Injectable()
 export class UsersService {
   constructor(
-    private readonly prisma:
-      PrismaService,
-
-    private readonly auditLogsService:
-      AuditLogsService,
+    private readonly prisma: PrismaService,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   findAll() {
@@ -57,22 +41,23 @@ export class UsersService {
         createdAt: true,
         updatedAt: true,
       },
-
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        {
+          createdAt: 'desc',
+        },
+        {
+          id: 'desc',
+        },
+      ],
     })
   }
 
-  async findOne(
-    id: number,
-  ) {
+  async findOne(id: number) {
     const user =
       await this.prisma.user.findUnique({
         where: {
           id,
         },
-
         select: {
           id: true,
           name: true,
@@ -95,8 +80,7 @@ export class UsersService {
   }
 
   async create(
-    createUserDto:
-      CreateUserDto,
+    createUserDto: CreateUserDto,
   ) {
     const normalizedEmail =
       createUserDto.email
@@ -106,8 +90,7 @@ export class UsersService {
     const existingUser =
       await this.prisma.user.findUnique({
         where: {
-          email:
-            normalizedEmail,
+          email: normalizedEmail,
         },
       })
 
@@ -140,8 +123,7 @@ export class UsersService {
 
             phone:
               createUserDto.phone
-                ?.trim() ||
-              null,
+                ?.trim() || null,
 
             status:
               UserStatus.ACTIVE,
@@ -160,17 +142,11 @@ export class UsersService {
         })
 
       await this.safeCreateAuditLog({
-        actorUserId:
-          user.id,
-
-        targetUserId:
-          user.id,
-
+        targetUserId: user.id,
         action:
           AuditAction.ACCOUNT_CREATED,
-
         description:
-          `${user.name} account was created.`,
+          `${user.name}'s ${user.role.toLowerCase()} account was created.`,
       })
 
       return user
@@ -184,8 +160,7 @@ export class UsersService {
   }
 
   async createAdmin(
-    createAdminDto:
-      CreateAdminDto,
+    createAdminDto: CreateAdminDto,
   ) {
     const actor =
       await this.requireAdmin(
@@ -200,8 +175,7 @@ export class UsersService {
     const existingUser =
       await this.prisma.user.findUnique({
         where: {
-          email:
-            normalizedEmail,
+          email: normalizedEmail,
         },
       })
 
@@ -234,8 +208,7 @@ export class UsersService {
 
             phone:
               createAdminDto.phone
-                ?.trim() ||
-              null,
+                ?.trim() || null,
 
             status:
               UserStatus.ACTIVE,
@@ -254,11 +227,8 @@ export class UsersService {
         })
 
       await this.safeCreateAuditLog({
-        actorUserId:
-          actor.id,
-
-        targetUserId:
-          admin.id,
+        actorUserId: actor.id,
+        targetUserId: admin.id,
 
         action:
           AuditAction.ADMIN_CREATED,
@@ -279,8 +249,7 @@ export class UsersService {
 
   async update(
     id: number,
-    updateUserDto:
-      UpdateUserDto,
+    updateUserDto: UpdateUserDto,
   ) {
     const existingUser =
       await this.findOne(id)
@@ -325,7 +294,8 @@ export class UsersService {
 
     if (
       updateUserDto.password !==
-      undefined
+      undefined &&
+      updateUserDto.password.trim()
     ) {
       updateData.passwordHash =
         await bcrypt.hash(
@@ -364,7 +334,7 @@ export class UsersService {
           AuditAction.ACCOUNT_UPDATED,
 
         description:
-          `${existingUser.name}'s account was updated.`,
+          `${existingUser.name}'s account information was updated.`,
       })
 
       return updatedUser
@@ -422,9 +392,7 @@ export class UsersService {
       })
 
     await this.safeCreateAuditLog({
-      actorUserId:
-        actor.id,
-
+      actorUserId: actor.id,
       targetUserId:
         updatedUser.id,
 
@@ -432,7 +400,7 @@ export class UsersService {
         AuditAction.ACCOUNT_ACTIVATED,
 
       description:
-        `${actor.name} activated ${updatedUser.name}'s account.`,
+        `${actor.name} approved or activated ${updatedUser.name}'s account.`,
     })
 
     return updatedUser
@@ -491,9 +459,7 @@ export class UsersService {
       })
 
     await this.safeCreateAuditLog({
-      actorUserId:
-        actor.id,
-
+      actorUserId: actor.id,
       targetUserId:
         updatedUser.id,
 
@@ -509,44 +475,204 @@ export class UsersService {
 
   async remove(
     id: number,
+    actorUserId: number,
   ) {
-    const user =
-      await this.findOne(id)
+    const actor =
+      await this.requireAdmin(
+        actorUserId,
+      )
 
-    const deletedUser =
-      await this.prisma.user.delete({
+    const target =
+      await this.prisma.user.findUnique({
         where: {
           id,
         },
 
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          phone: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
+        include: {
+          transportRequests: {
+            select: {
+              id: true,
+            },
+          },
+
+          driverProfile: {
+            include: {
+              trips: {
+                select: {
+                  id: true,
+                },
+              },
+
+              fuelLogs: {
+                select: {
+                  id: true,
+                },
+              },
+
+              issueReports: {
+                select: {
+                  id: true,
+                },
+              },
+            },
+          },
         },
       })
 
+    if (!target) {
+      throw new NotFoundException(
+        `User with ID ${id} not found`,
+      )
+    }
+
+    if (
+      actor.id === target.id
+    ) {
+      throw new BadRequestException(
+        'You cannot delete your own administrator account',
+      )
+    }
+
     /*
-     * We intentionally don't create
-     * an audit log referencing the
-     * deleted user here because the
-     * user no longer exists.
-     *
-     * For normal account management,
-     * prefer deactivate instead.
+     * Protect the original administrator.
      */
 
+    if (
+      target.role ===
+      UserRole.ADMIN
+    ) {
+      const primaryAdmin =
+        await this.getPrimaryAdmin()
+
+      if (
+        primaryAdmin?.id ===
+        target.id
+      ) {
+        throw new ForbiddenException(
+          'The original Fleet Pulse administrator account is protected and cannot be deleted',
+        )
+      }
+    }
+
+    /*
+     * Employee transport history must
+     * remain connected to its account.
+     */
+
+    if (
+      target.transportRequests.length >
+      0
+    ) {
+      throw new BadRequestException(
+        'This account has transport request history and cannot be permanently deleted. Deactivate the account instead.',
+      )
+    }
+
+    /*
+     * Driver operational history must
+     * also remain intact.
+     */
+
+    if (
+      target.driverProfile
+    ) {
+      const driver =
+        target.driverProfile
+
+      const hasDriverHistory =
+        driver.trips.length >
+          0 ||
+        driver.fuelLogs.length >
+          0 ||
+        driver.issueReports.length >
+          0
+
+      if (hasDriverHistory) {
+        throw new BadRequestException(
+          'This driver has trip, fuel, or vehicle issue history and cannot be permanently deleted. Deactivate the account instead.',
+        )
+      }
+
+      await this.prisma.$transaction(
+        async (transaction) => {
+          await transaction.driver.delete({
+            where: {
+              id:
+                driver.id,
+            },
+          })
+
+          await transaction.user.delete({
+            where: {
+              id:
+                target.id,
+            },
+          })
+        },
+      )
+    } else {
+      await this.prisma.user.delete({
+        where: {
+          id:
+            target.id,
+        },
+      })
+    }
+
+    /*
+     * Target no longer exists, so we
+     * intentionally leave targetUserId
+     * null while preserving the name
+     * inside the description.
+     */
+
+    await this.safeCreateAuditLog({
+      actorUserId:
+        actor.id,
+
+      action:
+        AuditAction.ACCOUNT_DELETED,
+
+      description:
+        `${actor.name} permanently deleted ${target.name}'s ${target.role.toLowerCase()} account.`,
+    })
+
     return {
-      ...deletedUser,
+      id:
+        target.id,
+
+      name:
+        target.name,
 
       message:
-        `${user.name} was deleted successfully`,
+        `${target.name}'s account was deleted successfully`,
     }
+  }
+
+  private async getPrimaryAdmin() {
+    return this.prisma.user.findFirst({
+      where: {
+        role:
+          UserRole.ADMIN,
+      },
+
+      orderBy: [
+        {
+          createdAt:
+            'asc',
+        },
+        {
+          id:
+            'asc',
+        },
+      ],
+
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    })
   }
 
   private async requireAdmin(

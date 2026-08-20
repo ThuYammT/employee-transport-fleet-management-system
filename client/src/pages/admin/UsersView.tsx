@@ -14,6 +14,7 @@ import {
   activateUser,
   createAdmin,
   deactivateUser,
+  deleteUser,
   getUsers,
 } from '../../services/user.service'
 
@@ -174,8 +175,22 @@ function UsersView() {
     useState('')
 
   const [
+    success,
+    setSuccess,
+  ] =
+    useState('')
+
+  const [
     actionLoading,
     setActionLoading,
+  ] =
+    useState<number | null>(
+      null,
+    )
+
+  const [
+    deletingUserId,
+    setDeletingUserId,
   ] =
     useState<number | null>(
       null,
@@ -207,6 +222,10 @@ function UsersView() {
   ] =
     useState('')
 
+  /* =====================================================
+     LOAD DATA
+  ===================================================== */
+
   useEffect(() => {
     void loadUsers()
   }, [])
@@ -227,12 +246,10 @@ function UsersView() {
 
       setError('')
 
-      const usersData =
+      const data =
         await getUsers()
 
-      setUsers(
-        usersData,
-      )
+      setUsers(data)
     } catch (error) {
       console.error(error)
 
@@ -361,12 +378,6 @@ function UsersView() {
       [users],
     )
 
-  /*
-   * Public employee registrations
-   * start INACTIVE, so these are
-   * shown as pending approvals.
-   */
-
   const pendingEmployees =
     useMemo(
       () =>
@@ -381,7 +392,50 @@ function UsersView() {
     )
 
   /* =====================================================
-     FILTER ACCOUNTS
+     ORIGINAL ADMIN
+  ===================================================== */
+
+  const primaryAdminId =
+    useMemo(() => {
+      const admins =
+        users
+          .filter(
+            (user) =>
+              user.role ===
+              'ADMIN',
+          )
+          .sort(
+            (a, b) => {
+              const dateDifference =
+                new Date(
+                  a.createdAt,
+                ).getTime() -
+                new Date(
+                  b.createdAt,
+                ).getTime()
+
+              if (
+                dateDifference !==
+                0
+              ) {
+                return dateDifference
+              }
+
+              return (
+                a.id -
+                b.id
+              )
+            },
+          )
+
+      return (
+        admins[0]?.id ??
+        null
+      )
+    }, [users])
+
+  /* =====================================================
+     ACCOUNT FILTERING
   ===================================================== */
 
   const filteredUsers =
@@ -595,6 +649,10 @@ function UsersView() {
         emptyAdminForm,
       )
 
+      setSuccess(
+        'Administrator account created successfully.',
+      )
+
       await refreshAll()
     } catch (error) {
       console.error(error)
@@ -613,7 +671,7 @@ function UsersView() {
   }
 
   /* =====================================================
-     APPROVE / ACTIVATE / DEACTIVATE
+     ACTIVATE / APPROVE / DEACTIVATE
   ===================================================== */
 
   async function handleAccountStatus(
@@ -638,17 +696,18 @@ function UsersView() {
       user.status ===
       'ACTIVE'
 
-    const action =
-      isActive
-        ? 'deactivate'
-        : 'activate'
+    const pendingEmployee =
+      user.role ===
+        'EMPLOYEE' &&
+      user.status ===
+        'INACTIVE'
 
     const actionLabel =
-      !isActive &&
-      user.role ===
-        'EMPLOYEE'
-        ? 'approve'
-        : action
+      isActive
+        ? 'deactivate'
+        : pendingEmployee
+          ? 'approve'
+          : 'activate'
 
     const confirmed =
       window.confirm(
@@ -667,6 +726,7 @@ function UsersView() {
       )
 
       setError('')
+      setSuccess('')
 
       if (isActive) {
         await deactivateUser(
@@ -679,6 +739,12 @@ function UsersView() {
           currentUser.id,
         )
       }
+
+      setSuccess(
+        pendingEmployee
+          ? `${user.name}'s employee account was approved.`
+          : `${user.name}'s account was ${isActive ? 'deactivated' : 'activated'}.`,
+      )
 
       await refreshAll()
     } catch (error) {
@@ -696,6 +762,99 @@ function UsersView() {
       )
     }
   }
+
+  /* =====================================================
+     DELETE
+  ===================================================== */
+
+  async function handleDeleteUser(
+    user: User,
+  ) {
+    const currentUser =
+      getCurrentUser()
+
+    if (
+      !currentUser ||
+      currentUser.role !==
+        'ADMIN'
+    ) {
+      setError(
+        'Administrator session not found.',
+      )
+
+      return
+    }
+
+    if (
+      currentUser.id ===
+      user.id
+    ) {
+      setError(
+        'You cannot delete your own administrator account.',
+      )
+
+      return
+    }
+
+    if (
+      user.role ===
+        'ADMIN' &&
+      user.id ===
+        primaryAdminId
+    ) {
+      setError(
+        'The original Fleet Pulse administrator account is protected and cannot be deleted.',
+      )
+
+      return
+    }
+
+    const confirmed =
+      window.confirm(
+        `Permanently delete ${user.name}?\n\nThis action cannot be undone.\n\nIf this user has fleet or transport history, Fleet Pulse will prevent deletion and you should deactivate the account instead.`,
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setDeletingUserId(
+        user.id,
+      )
+
+      setError('')
+      setSuccess('')
+
+      await deleteUser(
+        user.id,
+        currentUser.id,
+      )
+
+      setSuccess(
+        `${user.name}'s account was deleted successfully.`,
+      )
+
+      await refreshAll()
+    } catch (error) {
+      console.error(error)
+
+      setError(
+        getApiErrorMessage(
+          error,
+          'Failed to delete the account.',
+        ),
+      )
+    } finally {
+      setDeletingUserId(
+        null,
+      )
+    }
+  }
+
+  /* =====================================================
+     AUDIT PAGINATION
+  ===================================================== */
 
   const auditStart =
     auditPagination.total ===
@@ -715,18 +874,20 @@ function UsersView() {
 
   return (
     <>
-      {/* HEADER */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
 
       <header className="flex min-h-[72px] items-center justify-between border-b border-slate-200 bg-white px-8">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-slate-950">
-            Access & Audit
+            User Management
           </h1>
 
           <p className="mt-0.5 text-sm text-slate-500">
-            Manage Fleet Pulse
-            accounts, employee
-            approvals and security
+            Manage accounts,
+            employee approvals and
+            Fleet Pulse access
             activity.
           </p>
         </div>
@@ -759,7 +920,9 @@ function UsersView() {
       </header>
 
       <section className="mx-auto max-w-[1600px] p-8">
-        {/* HERO */}
+        {/* =================================================
+            HERO
+        ================================================= */}
 
         <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 px-7 py-7 text-white shadow-sm">
           <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
@@ -776,36 +939,72 @@ function UsersView() {
               </h2>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                Approve new employee
+                Approve employee
                 registrations,
                 manage account
                 availability and
                 review important
-                access events.
+                account activity.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <HeroMetric
-                label="Pending Approval"
-                value={`${pendingEmployees.length}`}
+                label="Active Accounts"
+                value={`${activeAccounts}`}
               />
 
               <HeroMetric
-                label="Audit Events"
-                value={auditPagination.total.toLocaleString()}
+                label="Pending Approval"
+                value={`${pendingEmployees.length}`}
               />
             </div>
           </div>
         </div>
 
+        {/* =================================================
+            ALERTS
+        ================================================= */}
+
         {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+          <div className="mb-6 flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <span>
+              {error}
+            </span>
+
+            <button
+              type="button"
+              onClick={() =>
+                setError('')
+              }
+              className="font-bold"
+            >
+              ×
+            </button>
           </div>
         )}
 
-        {/* STATS */}
+        {success && (
+          <div className="mb-6 flex items-start justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <span>
+              {success}
+            </span>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSuccess('')
+              }
+              className="font-bold"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* =================================================
+            STATISTICS
+        ================================================= */}
 
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
@@ -841,7 +1040,9 @@ function UsersView() {
           />
         </div>
 
-        {/* PENDING APPROVALS */}
+        {/* =================================================
+            PENDING EMPLOYEE APPROVALS
+        ================================================= */}
 
         {pendingEmployees.length >
           0 && (
@@ -858,11 +1059,9 @@ function UsersView() {
                 </h3>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  These employees
-                  cannot access Fleet
-                  Pulse until their
-                  accounts are
-                  approved.
+                  New employees must
+                  be approved before
+                  they can sign in.
                 </p>
               </div>
 
@@ -881,23 +1080,23 @@ function UsersView() {
                     key={
                       user.id
                     }
-                    className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-50 text-xs font-bold text-amber-700">
-                        {getInitials(
-                          user.name,
-                        )}
-                      </div>
+                    <div className="flex min-w-0 items-center gap-4">
+                      <Avatar
+                        name={
+                          user.name
+                        }
+                      />
 
-                      <div>
-                        <p className="font-semibold text-slate-900">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-900">
                           {
                             user.name
                           }
                         </p>
 
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 truncate text-sm text-slate-500">
                           {
                             user.email
                           }
@@ -912,24 +1111,49 @@ function UsersView() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={
-                        actionLoading ===
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={
+                          actionLoading ===
+                            user.id ||
+                          deletingUserId ===
+                            user.id
+                        }
+                        onClick={() =>
+                          void handleAccountStatus(
+                            user,
+                          )
+                        }
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        {actionLoading ===
                         user.id
-                      }
-                      onClick={() =>
-                        void handleAccountStatus(
-                          user,
-                        )
-                      }
-                      className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
-                    >
-                      {actionLoading ===
-                      user.id
-                        ? 'Approving...'
-                        : 'Approve Account'}
-                    </button>
+                          ? 'Approving...'
+                          : 'Approve'}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          deletingUserId ===
+                            user.id ||
+                          actionLoading ===
+                            user.id
+                        }
+                        onClick={() =>
+                          void handleDeleteUser(
+                            user,
+                          )
+                        }
+                        className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {deletingUserId ===
+                        user.id
+                          ? 'Deleting...'
+                          : 'Delete'}
+                      </button>
+                    </div>
                   </div>
                 ),
               )}
@@ -937,9 +1161,13 @@ function UsersView() {
           </section>
         )}
 
-        {/* MAIN ACCOUNT/AUDIT SECTION */}
+        {/* =================================================
+            MAIN CARD
+        ================================================= */}
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {/* TABS */}
+
           <div className="flex border-b border-slate-200 px-6 pt-3">
             <TabButton
               active={
@@ -969,6 +1197,10 @@ function UsersView() {
               Audit Log
             </TabButton>
           </div>
+
+          {/* =================================================
+              ACCOUNTS TAB
+          ================================================= */}
 
           {activeTab ===
           'ACCOUNTS' ? (
@@ -1022,7 +1254,7 @@ function UsersView() {
                           .value as StatusFilter,
                       )
                     }
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500"
                   >
                     <option value="ALL">
                       All statuses
@@ -1062,38 +1294,38 @@ function UsersView() {
                 0 ? (
                 <EmptyState
                   title="No accounts found"
-                  description="No Fleet Pulse accounts match your filters."
+                  description="No Fleet Pulse accounts match the current filters."
                 />
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1050px] table-fixed text-left text-sm">
+                  <table className="w-full min-w-[1120px] table-fixed text-left text-sm">
                     <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <tr>
-                        <th className="w-[250px] px-6 py-4">
+                        <th className="w-[270px] px-7 py-4">
                           Account
                         </th>
 
-                        <th className="w-[120px] py-4 pr-6">
+                        <th className="w-[110px] py-4 pr-5">
                           Role
                         </th>
 
-                        <th className="w-[150px] py-4 pr-6">
+                        <th className="w-[150px] py-4 pr-5">
                           Status
                         </th>
 
-                        <th className="w-[170px] py-4 pr-6">
+                        <th className="w-[135px] py-4 pr-5">
                           Phone
                         </th>
 
-                        <th className="w-[170px] py-4 pr-6">
+                        <th className="w-[145px] py-4 pr-5">
                           Created
                         </th>
 
-                        <th className="w-[170px] py-4 pr-6">
+                        <th className="w-[175px] py-4 pr-5">
                           Last Updated
                         </th>
 
-                        <th className="w-[190px] py-4 pr-6 text-right">
+                        <th className="w-[230px] py-4 pr-7 text-right">
                           Actions
                         </th>
                       </tr>
@@ -1115,37 +1347,61 @@ function UsersView() {
                             user.status ===
                               'INACTIVE'
 
+                          const isPrimaryAdmin =
+                            user.role ===
+                              'ADMIN' &&
+                            user.id ===
+                              primaryAdminId
+
                           return (
                             <tr
                               key={
                                 user.id
                               }
-                              className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70"
+                              className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60"
                             >
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">
-                                    {getInitials(
-                                      user.name,
-                                    )}
-                                  </div>
+                              {/* ACCOUNT */}
+
+                              <td className="px-7 py-4">
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <Avatar
+                                    name={
+                                      user.name
+                                    }
+                                  />
 
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                      <p className="truncate font-semibold text-slate-900">
+                                      <p
+                                        title={
+                                          user.name
+                                        }
+                                        className="truncate font-semibold text-slate-950"
+                                      >
                                         {
                                           user.name
                                         }
                                       </p>
 
                                       {isSelf && (
-                                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-bold text-blue-600">
+                                        <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-bold text-blue-600">
                                           YOU
+                                        </span>
+                                      )}
+
+                                      {isPrimaryAdmin && (
+                                        <span className="shrink-0 rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-bold text-violet-600">
+                                          PRIMARY
                                         </span>
                                       )}
                                     </div>
 
-                                    <p className="mt-1 truncate text-xs text-slate-500">
+                                    <p
+                                      title={
+                                        user.email
+                                      }
+                                      className="mt-1 truncate text-xs text-slate-500"
+                                    >
                                       {
                                         user.email
                                       }
@@ -1154,7 +1410,9 @@ function UsersView() {
                                 </div>
                               </td>
 
-                              <td className="py-4 pr-6">
+                              {/* ROLE */}
+
+                              <td className="py-4 pr-5">
                                 <RoleBadge
                                   role={
                                     user.role
@@ -1162,9 +1420,11 @@ function UsersView() {
                                 />
                               </td>
 
-                              <td className="py-4 pr-6">
+                              {/* STATUS */}
+
+                              <td className="py-4 pr-5">
                                 {pendingEmployee ? (
-                                  <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                                  <span className="inline-flex whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
                                     Pending Approval
                                   </span>
                                 ) : (
@@ -1176,61 +1436,110 @@ function UsersView() {
                                 )}
                               </td>
 
-                              <td className="py-4 pr-6 text-slate-600">
+                              {/* PHONE */}
+
+                              <td
+                                title={
+                                  user.phone ??
+                                  ''
+                                }
+                                className="truncate py-4 pr-5 text-slate-600"
+                              >
                                 {user.phone ||
                                   '—'}
                               </td>
 
-                              <td className="py-4 pr-6 text-slate-600">
+                              {/* CREATED */}
+
+                              <td className="whitespace-nowrap py-4 pr-5 text-slate-600">
                                 {formatDate(
                                   user.createdAt,
                                 )}
                               </td>
 
-                              <td className="py-4 pr-6 text-slate-600">
-                                {formatDateTime(
-                                  user.updatedAt,
-                                )}
+                              {/* UPDATED */}
+
+                              <td className="py-4 pr-5 text-slate-600">
+                                <span className="block leading-5">
+                                  {formatDateTime(
+                                    user.updatedAt,
+                                  )}
+                                </span>
                               </td>
 
-                              <td className="py-4 pr-6">
-                                <div className="flex justify-end">
+                              {/* ACTIONS */}
+
+                              <td className="py-4 pr-7">
+                                <div className="flex items-center justify-end gap-2">
                                   {isSelf ? (
-                                    <span className="text-xs font-medium text-slate-400">
-                                      Current
-                                      account
+                                    <span className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-400">
+                                      Current account
                                     </span>
                                   ) : (
-                                    <button
-                                      type="button"
-                                      disabled={
-                                        actionLoading ===
+                                    <>
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          actionLoading ===
+                                            user.id ||
+                                          deletingUserId ===
+                                            user.id
+                                        }
+                                        onClick={() =>
+                                          void handleAccountStatus(
+                                            user,
+                                          )
+                                        }
+                                        className={`whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 ${
+                                          user.status ===
+                                          'ACTIVE'
+                                            ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                            : pendingEmployee
+                                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                              : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                        }`}
+                                      >
+                                        {actionLoading ===
                                         user.id
-                                      }
-                                      onClick={() =>
-                                        void handleAccountStatus(
-                                          user,
-                                        )
-                                      }
-                                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 ${
-                                        user.status ===
-                                        'ACTIVE'
-                                          ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'
-                                          : pendingEmployee
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                            : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                      }`}
-                                    >
-                                      {actionLoading ===
-                                      user.id
-                                        ? 'Updating...'
-                                        : user.status ===
-                                            'ACTIVE'
-                                          ? 'Deactivate'
-                                          : pendingEmployee
-                                            ? 'Approve Account'
-                                            : 'Activate'}
-                                    </button>
+                                          ? 'Updating...'
+                                          : user.status ===
+                                              'ACTIVE'
+                                            ? 'Deactivate'
+                                            : pendingEmployee
+                                              ? 'Approve'
+                                              : 'Activate'}
+                                      </button>
+
+                                      {isPrimaryAdmin ? (
+                                        <span
+                                          title="The original administrator cannot be deleted."
+                                          className="whitespace-nowrap rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-400"
+                                        >
+                                          Protected
+                                        </span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            deletingUserId ===
+                                              user.id ||
+                                            actionLoading ===
+                                              user.id
+                                          }
+                                          onClick={() =>
+                                            void handleDeleteUser(
+                                              user,
+                                            )
+                                          }
+                                          className="whitespace-nowrap rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                                        >
+                                          {deletingUserId ===
+                                          user.id
+                                            ? 'Deleting...'
+                                            : 'Delete'}
+                                        </button>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </td>
@@ -1245,6 +1554,10 @@ function UsersView() {
             </>
           ) : (
             <>
+              {/* =================================================
+                  AUDIT TAB
+              ================================================= */}
+
               <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 xl:flex-row xl:items-end xl:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
@@ -1254,9 +1567,9 @@ function UsersView() {
                   <p className="mt-1 text-xs text-slate-500">
                     Login, logout,
                     registrations,
-                    approvals and
-                    account-management
-                    activity.
+                    approvals,
+                    account changes
+                    and deletions.
                   </p>
                 </div>
 
@@ -1284,7 +1597,7 @@ function UsersView() {
                         1,
                       )
                     }}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500"
                   >
                     <option value="ALL">
                       All activity
@@ -1316,6 +1629,10 @@ function UsersView() {
 
                     <option value="ACCOUNT_DEACTIVATED">
                       Account Deactivated
+                    </option>
+
+                    <option value="ACCOUNT_DELETED">
+                      Account Deleted
                     </option>
                   </select>
 
@@ -1383,7 +1700,7 @@ function UsersView() {
                 0 ? (
                 <EmptyState
                   title="No audit activity"
-                  description="No events match your current filters."
+                  description="No security events match the current filters."
                 />
               ) : (
                 <div className="overflow-x-auto">
@@ -1423,7 +1740,7 @@ function UsersView() {
                             key={
                               log.id
                             }
-                            className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70"
+                            className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60"
                           >
                             <td className="px-6 py-4">
                               <p className="font-medium text-slate-700">
@@ -1441,7 +1758,7 @@ function UsersView() {
                             <td className="py-4 pr-6">
                               {log.actorUser ? (
                                 <>
-                                  <p className="font-semibold text-slate-800">
+                                  <p className="truncate font-semibold text-slate-800">
                                     {
                                       log.actorUser
                                         .name
@@ -1494,7 +1811,7 @@ function UsersView() {
                             <td className="py-4 pr-6">
                               {log.targetUser ? (
                                 <>
-                                  <p className="font-medium text-slate-700">
+                                  <p className="truncate font-medium text-slate-700">
                                     {
                                       log.targetUser
                                         .name
@@ -1525,6 +1842,10 @@ function UsersView() {
           )}
         </section>
       </section>
+
+      {/* =================================================
+          CREATE ADMIN MODAL
+      ================================================= */}
 
       {isAdminModalOpen && (
         <CreateAdminModal
@@ -1560,6 +1881,24 @@ function UsersView() {
         />
       )}
     </>
+  )
+}
+
+/* =========================================================
+   AVATAR
+========================================================= */
+
+function Avatar({
+  name,
+}: {
+  name: string
+}) {
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">
+      {getInitials(
+        name,
+      )}
+    </div>
   )
 }
 
@@ -1630,7 +1969,7 @@ function AuditPaginationBar({
                   page,
                 )
               }
-              className={`min-w-9 rounded-lg px-3 py-2 text-xs font-semibold ${
+              className={`min-w-9 rounded-lg px-3 py-2 text-xs font-semibold transition ${
                 page ===
                 pagination.page
                   ? 'bg-slate-950 text-white'
@@ -1715,7 +2054,7 @@ function getVisiblePages(
 }
 
 /* =========================================================
-   CREATE ADMIN
+   CREATE ADMIN MODAL
 ========================================================= */
 
 function CreateAdminModal({
@@ -1756,7 +2095,7 @@ function CreateAdminModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">
-                Access management
+                Access Management
               </p>
 
               <h2 className="mt-1 text-xl font-semibold">
@@ -1778,7 +2117,7 @@ function CreateAdminModal({
               disabled={
                 saving
               }
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xl hover:bg-white/20"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xl transition hover:bg-white/20 disabled:opacity-50"
             >
               ×
             </button>
@@ -1798,9 +2137,10 @@ function CreateAdminModal({
             )}
 
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
-              This account receives
-              Administrator access
-              to Fleet Pulse.
+              Administrator accounts
+              have access to Fleet
+              Pulse management and
+              security features.
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
@@ -1819,6 +2159,7 @@ function CreateAdminModal({
                         .value,
                     )
                   }
+                  placeholder="Administrator name"
                   className={
                     inputClass
                   }
@@ -1841,6 +2182,7 @@ function CreateAdminModal({
                         .value,
                     )
                   }
+                  placeholder="admin@company.com"
                   className={
                     inputClass
                   }
@@ -1863,6 +2205,7 @@ function CreateAdminModal({
                         .value,
                     )
                   }
+                  placeholder="Optional"
                   className={
                     inputClass
                   }
@@ -1890,6 +2233,7 @@ function CreateAdminModal({
                         .value,
                     )
                   }
+                  placeholder="At least 8 characters"
                   className={
                     inputClass
                   }
@@ -1912,6 +2256,7 @@ function CreateAdminModal({
                         .value,
                     )
                   }
+                  placeholder="Repeat password"
                   className={
                     inputClass
                   }
@@ -1930,7 +2275,7 @@ function CreateAdminModal({
               disabled={
                 saving
               }
-              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -1954,7 +2299,7 @@ function CreateAdminModal({
 }
 
 /* =========================================================
-   UI COMPONENTS
+   SMALL UI COMPONENTS
 ========================================================= */
 
 function TabButton({
@@ -1973,10 +2318,10 @@ function TabButton({
       onClick={
         onClick
       }
-      className={`border-b-2 px-4 py-4 text-sm font-semibold ${
+      className={`border-b-2 px-4 py-4 text-sm font-semibold transition ${
         active
           ? 'border-slate-950 text-slate-950'
-          : 'border-transparent text-slate-400'
+          : 'border-transparent text-slate-400 hover:text-slate-700'
       }`}
     >
       {children}
@@ -2000,7 +2345,7 @@ function FilterButton({
       onClick={
         onClick
       }
-      className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+      className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
         active
           ? 'bg-slate-950 text-white'
           : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -2038,6 +2383,7 @@ function StatCard({
 }: {
   label: string
   value: number
+
   tone:
     | 'slate'
     | 'blue'
@@ -2047,10 +2393,13 @@ function StatCard({
   const styles = {
     slate:
       'bg-slate-100 text-slate-700',
+
     blue:
       'bg-blue-50 text-blue-700',
+
     green:
       'bg-emerald-50 text-emerald-700',
+
     amber:
       'bg-amber-50 text-amber-700',
   }
@@ -2090,8 +2439,10 @@ function RoleBadge({
     > = {
     ADMIN:
       'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
+
     EMPLOYEE:
       'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+
     DRIVER:
       'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
   }
@@ -2142,23 +2493,32 @@ function AuditActionBadge({
     > = {
     LOGIN:
       'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+
     LOGOUT:
       'bg-slate-100 text-slate-700 ring-1 ring-slate-200',
+
     ACCOUNT_CREATED:
       'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+
     ACCOUNT_UPDATED:
       'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
+
     ACCOUNT_ACTIVATED:
       'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+
     ACCOUNT_DEACTIVATED:
       'bg-red-50 text-red-700 ring-1 ring-red-200',
+
+    ACCOUNT_DELETED:
+      'bg-rose-50 text-rose-700 ring-1 ring-rose-200',
+
     ADMIN_CREATED:
       'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
   }
 
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${styles[action]}`}
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${styles[action]}`}
     >
       {formatStatus(
         action,
@@ -2223,7 +2583,11 @@ function EmptyState({
 }
 
 const inputClass =
-  'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+  'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+
+/* =========================================================
+   HELPERS
+========================================================= */
 
 function getInitials(
   name: string,

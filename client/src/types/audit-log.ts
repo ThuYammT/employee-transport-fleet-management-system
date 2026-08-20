@@ -10,6 +10,7 @@ export type AuditAction =
   | 'ACCOUNT_UPDATED'
   | 'ACCOUNT_ACTIVATED'
   | 'ACCOUNT_DEACTIVATED'
+  | 'ACCOUNT_DELETED'
   | 'ADMIN_CREATED'
 
 export type AuditUser = {
@@ -68,9 +69,7 @@ export type AuditPagination = {
 
 export type AuditLogResponse = {
   data: AuditLog[]
-
-  pagination:
-    AuditPagination
+  pagination: AuditPagination
 }
 
 export type AuditLogQuery = {

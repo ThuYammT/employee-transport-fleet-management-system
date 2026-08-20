@@ -7,9 +7,7 @@ import type {
   User,
 } from '../types/user'
 
-export async function getUsers(): Promise<
-  User[]
-> {
+export async function getUsers(): Promise<User[]> {
   const response =
     await api.get('/users')
 
@@ -96,8 +94,14 @@ export async function deactivateUser(
 
 export async function deleteUser(
   id: number,
+  actorUserId: number,
 ): Promise<void> {
   await api.delete(
     `/users/${id}`,
+    {
+      params: {
+        actorUserId,
+      },
+    },
   )
 }
