@@ -52,12 +52,10 @@ type StatusFilter =
 
 type AssignmentForm = {
   driverId: string
-  vehicleId: string
 }
 
 const emptyAssignmentForm: AssignmentForm = {
   driverId: '',
-  vehicleId: '',
 }
 
 const ITEMS_PER_PAGE = 10
@@ -328,13 +326,59 @@ function TransportRequestsView() {
       assignmentForm.driverId,
     )
 
-    const vehicleId = Number(
-      assignmentForm.vehicleId,
-    )
-
-    if (!driverId || !vehicleId) {
+    if (!driverId) {
       setAssignmentError(
-        'Please select both a driver and a vehicle.',
+        'Please select a driver.',
+      )
+
+      return
+    }
+
+    const selectedDriver =
+      drivers.find(
+        (driver) =>
+          driver.id === driverId,
+      )
+
+    if (!selectedDriver) {
+      setAssignmentError(
+        'The selected driver could not be found.',
+      )
+
+      return
+    }
+
+    if (
+      !selectedDriver.assignedVehicleId
+    ) {
+      setAssignmentError(
+        'This driver does not have an assigned vehicle. Assign a vehicle from the Drivers page first.',
+      )
+
+      return
+    }
+
+    const assignedVehicle =
+      vehicles.find(
+        (vehicle) =>
+          vehicle.id ===
+          selectedDriver.assignedVehicleId,
+      )
+
+    if (!assignedVehicle) {
+      setAssignmentError(
+        'The vehicle assigned to this driver could not be found.',
+      )
+
+      return
+    }
+
+    if (
+      assignedVehicle.status !==
+      'AVAILABLE'
+    ) {
+      setAssignmentError(
+        `The assigned vehicle ${assignedVehicle.plateNumber} is not currently available.`,
       )
 
       return
@@ -348,11 +392,14 @@ function TransportRequestsView() {
         requestId:
           assignmentRequest.id,
         driverId,
-        vehicleId,
+        vehicleId:
+          assignedVehicle.id,
       })
 
-      closeAssignmentModal()
-
+      setAssignmentRequest(null)
+      setAssignmentForm(
+        emptyAssignmentForm,
+      )
       setSelectedRequest(null)
 
       await loadPageData()
@@ -374,13 +421,31 @@ function TransportRequestsView() {
     useMemo(
       () =>
         drivers.filter(
-          (driver) =>
-            driver.availabilityStatus ===
-              'AVAILABLE' &&
-            driver.user?.status ===
-              'ACTIVE',
+          (driver) => {
+            if (
+              driver.availabilityStatus !==
+                'AVAILABLE' ||
+              driver.user?.status !==
+                'ACTIVE' ||
+              !driver.assignedVehicleId
+            ) {
+              return false
+            }
+
+            const assignedVehicle =
+              vehicles.find(
+                (vehicle) =>
+                  vehicle.id ===
+                  driver.assignedVehicleId,
+              )
+
+            return (
+              assignedVehicle?.status ===
+              'AVAILABLE'
+            )
+          },
         ),
-      [drivers],
+      [drivers, vehicles],
     )
 
   const availableVehicles =
@@ -564,8 +629,8 @@ function TransportRequestsView() {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
                 Review employee journeys,
                 approve valid requests and
-                assign available drivers and
-                fleet vehicles.
+                assign available drivers using their
+                pre-assigned fleet vehicles.
               </p>
             </div>
 
@@ -1016,7 +1081,7 @@ function TransportRequestsView() {
             availableDrivers
           }
           vehicles={
-            availableVehicles
+            vehicles
           }
           formData={
             assignmentForm
@@ -1344,6 +1409,24 @@ function AssignmentModal({
     event: React.FormEvent<HTMLFormElement>,
   ) => void
 }) {
+  const selectedDriver =
+    drivers.find(
+      (driver) =>
+        driver.id ===
+        Number(formData.driverId),
+    ) ?? null
+
+  const assignedVehicle =
+    selectedDriver?.assignedVehicleId
+      ? vehicles.find(
+          (vehicle) =>
+            vehicle.id ===
+            selectedDriver.assignedVehicleId,
+        ) ??
+        selectedDriver.assignedVehicle ??
+        null
+      : null
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-[2px]">
       <div className="my-8 w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -1355,8 +1438,7 @@ function AssignmentModal({
               </p>
 
               <h2 className="mt-1 text-xl font-semibold">
-                Assign Driver &
-                Vehicle
+                Assign Driver
               </h2>
 
               <p className="mt-1 text-sm text-slate-300">
@@ -1402,16 +1484,8 @@ function AssignmentModal({
 
           {drivers.length === 0 && (
             <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              No available drivers
-              currently exist.
-            </div>
-          )}
-
-          {vehicles.length ===
-            0 && (
-            <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              No available vehicles
-              currently exist.
+              No available driver with an available assigned vehicle exists.
+              Assign a vehicle to a driver from the Drivers page first.
             </div>
           )}
 
@@ -1438,8 +1512,7 @@ function AssignmentModal({
                 required
               >
                 <option value="">
-                  Select an available
-                  driver
+                  Select an available driver
                 </option>
 
                 {drivers.map(
@@ -1450,55 +1523,47 @@ function AssignmentModal({
                     >
                       {driver.user?.name}{' '}
                       —{' '}
-                      {
-                        driver.licenseNumber
-                      }
+                      {driver.licenseNumber}
                     </option>
                   ),
                 )}
               </select>
+
+              <p className="mt-2 text-xs text-slate-500">
+                The vehicle is taken automatically from the driver's permanent
+                vehicle assignment.
+              </p>
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Vehicle
+                Assigned Vehicle
               </label>
 
-              <select
-                value={
-                  formData.vehicleId
-                }
-                onChange={(event) =>
-                  onChange(
-                    'vehicleId',
-                    event.target.value,
-                  )
-                }
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                required
-              >
-                <option value="">
-                  Select an available
-                  vehicle
-                </option>
+              {selectedDriver &&
+              assignedVehicle ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {assignedVehicle.plateNumber}
+                      </p>
 
-                {vehicles.map(
-                  (vehicle) => (
-                    <option
-                      key={vehicle.id}
-                      value={vehicle.id}
-                    >
-                      {
-                        vehicle.plateNumber
-                      }{' '}
-                      —{' '}
-                      {
-                        vehicle.vehicleType
-                      }
-                    </option>
-                  ),
-                )}
-              </select>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {assignedVehicle.vehicleType}
+                      </p>
+                    </div>
+
+                    <span className="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      Automatically selected
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                  Select a driver to see their assigned vehicle.
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
@@ -1540,8 +1605,8 @@ function AssignmentModal({
                   saving ||
                   drivers.length ===
                     0 ||
-                  vehicles.length ===
-                    0
+                  !selectedDriver ||
+                  !assignedVehicle
                 }
                 className="rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
@@ -1990,8 +2055,7 @@ function RequestDetailsModal({
                 onClick={onAssign}
                 className="rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
               >
-                Assign Driver &
-                Vehicle
+                Assign Driver
               </button>
             )}
         </div>

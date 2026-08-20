@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+
 import {
   DriverAvailabilityStatus,
   Prisma,
@@ -11,10 +12,21 @@ import {
   VehicleStatus,
 } from '@prisma/client'
 
-import { deleteFuelLogsForTrips } from '../prisma/cascade-delete'
-import { PrismaService } from '../prisma/prisma.service'
-import { CreateTripDto } from './dto/create-trip.dto'
-import { UpdateTripDto } from './dto/update-trip.dto'
+import {
+  deleteFuelLogsForTrips,
+} from '../prisma/cascade-delete'
+
+import {
+  PrismaService,
+} from '../prisma/prisma.service'
+
+import {
+  CreateTripDto,
+} from './dto/create-trip.dto'
+
+import {
+  UpdateTripDto,
+} from './dto/update-trip.dto'
 
 const tripInclude = {
   request: {
@@ -78,13 +90,14 @@ export class TripsService {
   }
 
   async findOne(id: number) {
-    const trip = await this.prisma.trip.findUnique({
-      where: {
-        id,
-      },
+    const trip =
+      await this.prisma.trip.findUnique({
+        where: {
+          id,
+        },
 
-      include: tripInclude,
-    })
+        include: tripInclude,
+      })
 
     if (!trip) {
       throw new NotFoundException(
@@ -95,16 +108,19 @@ export class TripsService {
     return trip
   }
 
-  async findByDriverId(driverId: number) {
-    const driver = await this.prisma.driver.findUnique({
-      where: {
-        id: driverId,
-      },
+  async findByDriverId(
+    driverId: number,
+  ) {
+    const driver =
+      await this.prisma.driver.findUnique({
+        where: {
+          id: driverId,
+        },
 
-      select: {
-        id: true,
-      },
-    })
+        select: {
+          id: true,
+        },
+      })
 
     if (!driver) {
       throw new NotFoundException(
@@ -125,6 +141,7 @@ export class TripsService {
             requestDate: 'asc',
           },
         },
+
         {
           createdAt: 'desc',
         },
@@ -132,11 +149,14 @@ export class TripsService {
     })
   }
 
-  async create(createTripDto: CreateTripDto) {
+  async create(
+    createTripDto: CreateTripDto,
+  ) {
     const existingTrip =
       await this.prisma.trip.findUnique({
         where: {
-          requestId: createTripDto.requestId,
+          requestId:
+            createTripDto.requestId,
         },
 
         select: {
@@ -153,7 +173,8 @@ export class TripsService {
     const request =
       await this.prisma.transportRequest.findUnique({
         where: {
-          id: createTripDto.requestId,
+          id:
+            createTripDto.requestId,
         },
 
         include: {
@@ -173,28 +194,42 @@ export class TripsService {
       )
     }
 
-    if (request.status !== 'APPROVED') {
+    if (
+      request.status !==
+      'APPROVED'
+    ) {
       throw new BadRequestException(
         'The transport request must be approved before assigning a trip',
       )
     }
 
-    const driver = await this.prisma.driver.findUnique({
-      where: {
-        id: createTripDto.driverId,
-      },
+    const driver =
+      await this.prisma.driver.findUnique({
+        where: {
+          id:
+            createTripDto.driverId,
+        },
 
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-            status: true,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              status: true,
+            },
+          },
+
+          assignedVehicle: {
+            select: {
+              id: true,
+              plateNumber: true,
+              vehicleType: true,
+              status: true,
+            },
           },
         },
-      },
-    })
+      })
 
     if (!driver) {
       throw new NotFoundException(
@@ -202,13 +237,19 @@ export class TripsService {
       )
     }
 
-    if (driver.user.role !== 'DRIVER') {
+    if (
+      driver.user.role !==
+      'DRIVER'
+    ) {
       throw new BadRequestException(
         'The selected account is not a driver',
       )
     }
 
-    if (driver.user.status !== 'ACTIVE') {
+    if (
+      driver.user.status !==
+      'ACTIVE'
+    ) {
       throw new BadRequestException(
         'The selected driver account is inactive',
       )
@@ -223,48 +264,63 @@ export class TripsService {
       )
     }
 
-    const vehicle =
-      await this.prisma.vehicle.findUnique({
-        where: {
-          id: createTripDto.vehicleId,
-        },
-      })
-
-    if (!vehicle) {
-      throw new NotFoundException(
-        `Vehicle with ID ${createTripDto.vehicleId} was not found`,
+    if (
+      !driver.assignedVehicleId
+    ) {
+      throw new BadRequestException(
+        `${driver.user.name} does not have an assigned vehicle`,
       )
     }
 
-    if (vehicle.status !== VehicleStatus.AVAILABLE) {
+    if (
+      !driver.assignedVehicle
+    ) {
       throw new BadRequestException(
-        `Vehicle ${vehicle.plateNumber} is not currently available`,
+        `The assigned vehicle for ${driver.user.name} could not be found`,
+      )
+    }
+
+    if (
+      driver.assignedVehicleId !==
+      createTripDto.vehicleId
+    ) {
+      throw new BadRequestException(
+        `Vehicle ${createTripDto.vehicleId} is not assigned to ${driver.user.name}`,
+      )
+    }
+
+    if (
+      driver.assignedVehicle.status !==
+      VehicleStatus.AVAILABLE
+    ) {
+      throw new BadRequestException(
+        `Vehicle ${driver.assignedVehicle.plateNumber} is not currently available`,
       )
     }
 
     try {
       return await this.prisma.$transaction(
         async (transaction) => {
-          /*
-           * Recheck availability inside the transaction.
-           * This reduces the chance of two assignments using
-           * the same driver or vehicle at nearly the same time.
-           */
           const currentDriver =
             await transaction.driver.findUnique({
               where: {
-                id: createTripDto.driverId,
+                id:
+                  createTripDto.driverId,
               },
 
               select: {
-                availabilityStatus: true,
+                availabilityStatus:
+                  true,
+                assignedVehicleId:
+                  true,
               },
             })
 
           const currentVehicle =
             await transaction.vehicle.findUnique({
               where: {
-                id: createTripDto.vehicleId,
+                id:
+                  createTripDto.vehicleId,
               },
 
               select: {
@@ -275,11 +331,13 @@ export class TripsService {
           const currentRequest =
             await transaction.transportRequest.findUnique({
               where: {
-                id: createTripDto.requestId,
+                id:
+                  createTripDto.requestId,
               },
 
               select: {
                 status: true,
+
                 trip: {
                   select: {
                     id: true,
@@ -294,24 +352,48 @@ export class TripsService {
             )
           }
 
-          if (currentRequest.status !== 'APPROVED') {
+          if (
+            currentRequest.status !==
+            'APPROVED'
+          ) {
             throw new BadRequestException(
               'The request is no longer approved',
             )
           }
 
-          if (currentRequest.trip) {
+          if (
+            currentRequest.trip
+          ) {
             throw new ConflictException(
               'This request already has a trip assignment',
             )
           }
 
           if (
-            currentDriver?.availabilityStatus !==
+            currentDriver
+              ?.availabilityStatus !==
             DriverAvailabilityStatus.AVAILABLE
           ) {
             throw new BadRequestException(
               'The selected driver is no longer available',
+            )
+          }
+
+          if (
+            !currentDriver
+              ?.assignedVehicleId
+          ) {
+            throw new BadRequestException(
+              'The selected driver no longer has an assigned vehicle',
+            )
+          }
+
+          if (
+            currentDriver.assignedVehicleId !==
+            createTripDto.vehicleId
+          ) {
+            throw new BadRequestException(
+              'The selected vehicle is no longer assigned to this driver',
             )
           }
 
@@ -324,20 +406,29 @@ export class TripsService {
             )
           }
 
-          const trip = await transaction.trip.create({
-            data: {
-              requestId: createTripDto.requestId,
-              driverId: createTripDto.driverId,
-              vehicleId: createTripDto.vehicleId,
-              status: TripStatus.SCHEDULED,
-            },
+          const trip =
+            await transaction.trip.create({
+              data: {
+                requestId:
+                  createTripDto.requestId,
 
-            include: tripInclude,
-          })
+                driverId:
+                  createTripDto.driverId,
+
+                vehicleId:
+                  createTripDto.vehicleId,
+
+                status:
+                  TripStatus.SCHEDULED,
+              },
+
+              include: tripInclude,
+            })
 
           await transaction.driver.update({
             where: {
-              id: createTripDto.driverId,
+              id:
+                createTripDto.driverId,
             },
 
             data: {
@@ -348,11 +439,13 @@ export class TripsService {
 
           await transaction.vehicle.update({
             where: {
-              id: createTripDto.vehicleId,
+              id:
+                createTripDto.vehicleId,
             },
 
             data: {
-              status: VehicleStatus.IN_USE,
+              status:
+                VehicleStatus.IN_USE,
             },
           })
 
@@ -360,7 +453,10 @@ export class TripsService {
         },
       )
     } catch (error) {
-      this.handlePrismaError(error)
+      this.handlePrismaError(
+        error,
+      )
+
       throw error
     }
   }
@@ -369,7 +465,8 @@ export class TripsService {
     id: number,
     updateTripDto: UpdateTripDto,
   ) {
-    const existingTrip = await this.findOne(id)
+    const existingTrip =
+      await this.findOne(id)
 
     if (
       updateTripDto.requestId &&
@@ -379,7 +476,8 @@ export class TripsService {
       const request =
         await this.prisma.transportRequest.findUnique({
           where: {
-            id: updateTripDto.requestId,
+            id:
+              updateTripDto.requestId,
           },
         })
 
@@ -389,81 +487,139 @@ export class TripsService {
         )
       }
 
-      if (request.status !== 'APPROVED') {
+      if (
+        request.status !==
+        'APPROVED'
+      ) {
         throw new BadRequestException(
           'The replacement request must be approved',
         )
       }
     }
 
-    if (
-      updateTripDto.driverId &&
-      updateTripDto.driverId !==
-        existingTrip.driverId
-    ) {
-      const driver =
-        await this.prisma.driver.findUnique({
-          where: {
-            id: updateTripDto.driverId,
+    const nextDriverId =
+      updateTripDto.driverId ??
+      existingTrip.driverId
+
+    const selectedDriver =
+      await this.prisma.driver.findUnique({
+        where: {
+          id: nextDriverId,
+        },
+
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              status: true,
+            },
           },
 
-          include: {
-            user: true,
+          assignedVehicle: {
+            select: {
+              id: true,
+              plateNumber: true,
+              vehicleType: true,
+              status: true,
+            },
           },
-        })
+        },
+      })
 
-      if (!driver) {
-        throw new NotFoundException(
-          `Driver with ID ${updateTripDto.driverId} was not found`,
-        )
-      }
-
-      if (
-        driver.availabilityStatus !==
-        DriverAvailabilityStatus.AVAILABLE
-      ) {
-        throw new BadRequestException(
-          'The replacement driver is not available',
-        )
-      }
+    if (!selectedDriver) {
+      throw new NotFoundException(
+        `Driver with ID ${nextDriverId} was not found`,
+      )
     }
 
     if (
-      updateTripDto.vehicleId &&
-      updateTripDto.vehicleId !==
-        existingTrip.vehicleId
+      selectedDriver.user.role !==
+      'DRIVER'
     ) {
-      const vehicle =
-        await this.prisma.vehicle.findUnique({
-          where: {
-            id: updateTripDto.vehicleId,
-          },
-        })
+      throw new BadRequestException(
+        'The selected account is not a driver',
+      )
+    }
 
-      if (!vehicle) {
-        throw new NotFoundException(
-          `Vehicle with ID ${updateTripDto.vehicleId} was not found`,
-        )
-      }
+    if (
+      selectedDriver.user.status !==
+      'ACTIVE'
+    ) {
+      throw new BadRequestException(
+        'The selected driver account is inactive',
+      )
+    }
 
-      if (vehicle.status !== VehicleStatus.AVAILABLE) {
-        throw new BadRequestException(
-          'The replacement vehicle is not available',
-        )
-      }
+    if (
+      nextDriverId !==
+        existingTrip.driverId &&
+      selectedDriver.availabilityStatus !==
+        DriverAvailabilityStatus.AVAILABLE
+    ) {
+      throw new BadRequestException(
+        'The replacement driver is not available',
+      )
+    }
+
+    if (
+      !selectedDriver.assignedVehicleId
+    ) {
+      throw new BadRequestException(
+        `${selectedDriver.user.name} does not have an assigned vehicle`,
+      )
+    }
+
+    if (
+      !selectedDriver.assignedVehicle
+    ) {
+      throw new BadRequestException(
+        `The assigned vehicle for ${selectedDriver.user.name} could not be found`,
+      )
+    }
+
+    const requiredVehicleId =
+      selectedDriver.assignedVehicleId
+
+    if (
+      updateTripDto.vehicleId !==
+        undefined &&
+      updateTripDto.vehicleId !==
+        requiredVehicleId
+    ) {
+      throw new BadRequestException(
+        `The trip vehicle must be the vehicle assigned to ${selectedDriver.user.name}`,
+      )
+    }
+
+    if (
+      requiredVehicleId !==
+        existingTrip.vehicleId &&
+      selectedDriver.assignedVehicle.status !==
+        VehicleStatus.AVAILABLE
+    ) {
+      throw new BadRequestException(
+        `Vehicle ${selectedDriver.assignedVehicle.plateNumber} is not currently available`,
+      )
     }
 
     try {
       return await this.prisma.$transaction(
         async (transaction) => {
-          if (
-            updateTripDto.driverId &&
-            updateTripDto.driverId !==
-              existingTrip.driverId
-          ) {
+          const driverChanged =
+            nextDriverId !==
+            existingTrip.driverId
+
+          const vehicleChanged =
+            requiredVehicleId !==
+            existingTrip.vehicleId
+
+          if (driverChanged) {
             await transaction.driver.update({
               where: {
-                id: existingTrip.driverId,
+                id:
+                  existingTrip.driverId,
               },
 
               data: {
@@ -474,7 +630,8 @@ export class TripsService {
 
             await transaction.driver.update({
               where: {
-                id: updateTripDto.driverId,
+                id:
+                  nextDriverId,
               },
 
               data: {
@@ -484,28 +641,28 @@ export class TripsService {
             })
           }
 
-          if (
-            updateTripDto.vehicleId &&
-            updateTripDto.vehicleId !==
-              existingTrip.vehicleId
-          ) {
+          if (vehicleChanged) {
             await transaction.vehicle.update({
               where: {
-                id: existingTrip.vehicleId,
+                id:
+                  existingTrip.vehicleId,
               },
 
               data: {
-                status: VehicleStatus.AVAILABLE,
+                status:
+                  VehicleStatus.AVAILABLE,
               },
             })
 
             await transaction.vehicle.update({
               where: {
-                id: updateTripDto.vehicleId,
+                id:
+                  requiredVehicleId,
               },
 
               data: {
-                status: VehicleStatus.IN_USE,
+                status:
+                  VehicleStatus.IN_USE,
               },
             })
           }
@@ -516,9 +673,14 @@ export class TripsService {
             },
 
             data: {
-              requestId: updateTripDto.requestId,
-              driverId: updateTripDto.driverId,
-              vehicleId: updateTripDto.vehicleId,
+              requestId:
+                updateTripDto.requestId,
+
+              driverId:
+                nextDriverId,
+
+              vehicleId:
+                requiredVehicleId,
             },
 
             include: tripInclude,
@@ -526,188 +688,115 @@ export class TripsService {
         },
       )
     } catch (error) {
-      this.handlePrismaError(error)
+      this.handlePrismaError(
+        error,
+      )
+
       throw error
     }
   }
-  async startTrip(id: number) {
-  const trip = await this.findOne(id)
 
-  if (trip.status !== TripStatus.SCHEDULED) {
-    throw new BadRequestException(
-      'Only a scheduled trip can be started',
-    )
-  }
-
-  return this.prisma.$transaction(
-    async (transaction) => {
-      await transaction.driver.update({
-        where: {
-          id: trip.driverId,
-        },
-
-        data: {
-          availabilityStatus:
-            DriverAvailabilityStatus.ON_TRIP,
-        },
-      })
-
-      await transaction.vehicle.update({
-        where: {
-          id: trip.vehicleId,
-        },
-
-        data: {
-          status: VehicleStatus.IN_USE,
-        },
-      })
-
-      return transaction.trip.update({
-        where: {
-          id,
-        },
-
-        data: {
-          status: TripStatus.IN_PROGRESS,
-          startTime: new Date(),
-          endTime: null,
-        },
-
-        include: tripInclude,
-      })
-    },
-  )
-}
-
-async completeTrip(id: number) {
-  const trip = await this.findOne(id)
-
-  if (trip.status !== TripStatus.IN_PROGRESS) {
-    throw new BadRequestException(
-      'Only an in-progress trip can be completed',
-    )
-  }
-
-  return this.prisma.$transaction(
-    async (transaction) => {
-      const completedTrip =
-        await transaction.trip.update({
-          where: {
-            id,
-          },
-
-          data: {
-            status: TripStatus.COMPLETED,
-            endTime: new Date(),
-          },
-
-          include: tripInclude,
-        })
-
-      await transaction.driver.update({
-        where: {
-          id: trip.driverId,
-        },
-
-        data: {
-          availabilityStatus:
-            DriverAvailabilityStatus.AVAILABLE,
-        },
-      })
-
-      await transaction.vehicle.update({
-        where: {
-          id: trip.vehicleId,
-        },
-
-        data: {
-          status: VehicleStatus.AVAILABLE,
-        },
-      })
-
-      return completedTrip
-    },
-  )
-}
-
-async cancelTrip(id: number) {
-  const trip = await this.findOne(id)
-
-  if (
-    trip.status === TripStatus.COMPLETED ||
-    trip.status === TripStatus.CANCELLED
+  async startTrip(
+    id: number,
   ) {
-    throw new BadRequestException(
-      'This trip can no longer be cancelled',
-    )
-  }
+    const trip =
+      await this.findOne(id)
 
-  return this.prisma.$transaction(
-    async (transaction) => {
-      const cancelledTrip =
-        await transaction.trip.update({
-          where: {
-            id,
-          },
-
-          data: {
-            status: TripStatus.CANCELLED,
-            endTime: new Date(),
-          },
-
-          include: tripInclude,
-        })
-
-      await transaction.driver.update({
-        where: {
-          id: trip.driverId,
-        },
-
-        data: {
-          availabilityStatus:
-            DriverAvailabilityStatus.AVAILABLE,
-        },
-      })
-
-      await transaction.vehicle.update({
-        where: {
-          id: trip.vehicleId,
-        },
-
-        data: {
-          status: VehicleStatus.AVAILABLE,
-        },
-      })
-
-      return cancelledTrip
-    },
-  )
-  }
-
-  async remove(id: number) {
-    const trip = await this.findOne(id)
-
-    if (trip.status === TripStatus.IN_PROGRESS) {
+    if (
+      trip.status !==
+      TripStatus.SCHEDULED
+    ) {
       throw new BadRequestException(
-        'An in-progress trip cannot be deleted',
+        'Only a scheduled trip can be started',
       )
     }
 
     return this.prisma.$transaction(
       async (transaction) => {
-        await deleteFuelLogsForTrips(transaction, [id])
+        await transaction.driver.update({
+          where: {
+            id:
+              trip.driverId,
+          },
 
-        const deletedTrip = await transaction.trip.delete({
+          data: {
+            availabilityStatus:
+              DriverAvailabilityStatus.ON_TRIP,
+          },
+        })
+
+        await transaction.vehicle.update({
+          where: {
+            id:
+              trip.vehicleId,
+          },
+
+          data: {
+            status:
+              VehicleStatus.IN_USE,
+          },
+        })
+
+        return transaction.trip.update({
           where: {
             id,
           },
 
+          data: {
+            status:
+              TripStatus.IN_PROGRESS,
+
+            startTime:
+              new Date(),
+
+            endTime:
+              null,
+          },
+
           include: tripInclude,
         })
+      },
+    )
+  }
+
+  async completeTrip(
+    id: number,
+  ) {
+    const trip =
+      await this.findOne(id)
+
+    if (
+      trip.status !==
+      TripStatus.IN_PROGRESS
+    ) {
+      throw new BadRequestException(
+        'Only an in-progress trip can be completed',
+      )
+    }
+
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const completedTrip =
+          await transaction.trip.update({
+            where: {
+              id,
+            },
+
+            data: {
+              status:
+                TripStatus.COMPLETED,
+
+              endTime:
+                new Date(),
+            },
+
+            include: tripInclude,
+          })
 
         await transaction.driver.update({
           where: {
-            id: trip.driverId,
+            id:
+              trip.driverId,
           },
 
           data: {
@@ -718,11 +807,138 @@ async cancelTrip(id: number) {
 
         await transaction.vehicle.update({
           where: {
-            id: trip.vehicleId,
+            id:
+              trip.vehicleId,
           },
 
           data: {
-            status: VehicleStatus.AVAILABLE,
+            status:
+              VehicleStatus.AVAILABLE,
+          },
+        })
+
+        return completedTrip
+      },
+    )
+  }
+
+  async cancelTrip(
+    id: number,
+  ) {
+    const trip =
+      await this.findOne(id)
+
+    if (
+      trip.status ===
+        TripStatus.COMPLETED ||
+      trip.status ===
+        TripStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        'This trip can no longer be cancelled',
+      )
+    }
+
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const cancelledTrip =
+          await transaction.trip.update({
+            where: {
+              id,
+            },
+
+            data: {
+              status:
+                TripStatus.CANCELLED,
+
+              endTime:
+                new Date(),
+            },
+
+            include: tripInclude,
+          })
+
+        await transaction.driver.update({
+          where: {
+            id:
+              trip.driverId,
+          },
+
+          data: {
+            availabilityStatus:
+              DriverAvailabilityStatus.AVAILABLE,
+          },
+        })
+
+        await transaction.vehicle.update({
+          where: {
+            id:
+              trip.vehicleId,
+          },
+
+          data: {
+            status:
+              VehicleStatus.AVAILABLE,
+          },
+        })
+
+        return cancelledTrip
+      },
+    )
+  }
+
+  async remove(
+    id: number,
+  ) {
+    const trip =
+      await this.findOne(id)
+
+    if (
+      trip.status ===
+      TripStatus.IN_PROGRESS
+    ) {
+      throw new BadRequestException(
+        'An in-progress trip cannot be deleted',
+      )
+    }
+
+    return this.prisma.$transaction(
+      async (transaction) => {
+        await deleteFuelLogsForTrips(
+          transaction,
+          [id],
+        )
+
+        const deletedTrip =
+          await transaction.trip.delete({
+            where: {
+              id,
+            },
+
+            include: tripInclude,
+          })
+
+        await transaction.driver.update({
+          where: {
+            id:
+              trip.driverId,
+          },
+
+          data: {
+            availabilityStatus:
+              DriverAvailabilityStatus.AVAILABLE,
+          },
+        })
+
+        await transaction.vehicle.update({
+          where: {
+            id:
+              trip.vehicleId,
+          },
+
+          data: {
+            status:
+              VehicleStatus.AVAILABLE,
           },
         })
 
@@ -731,7 +947,9 @@ async cancelTrip(id: number) {
     )
   }
 
-  private handlePrismaError(error: unknown): void {
+  private handlePrismaError(
+    error: unknown,
+  ): void {
     if (
       error instanceof
         Prisma.PrismaClientKnownRequestError &&
