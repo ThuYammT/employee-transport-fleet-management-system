@@ -627,25 +627,6 @@ function VehicleIssuesPage() {
             STATUS EXPLANATION
         ========================== */}
 
-        <div className="mb-6 grid gap-3 md:grid-cols-3">
-          <WorkflowCard
-            number="1"
-            title="Reported"
-            description="Your report was submitted and is waiting for fleet review."
-          />
-
-          <WorkflowCard
-            number="2"
-            title="In Progress"
-            description="The issue is being reviewed or maintenance work is underway."
-          />
-
-          <WorkflowCard
-            number="3"
-            title="Resolved"
-            description="The problem has been handled and the issue is closed."
-          />
-        </div>
 
         {!selectedVehicle && (
           <VehicleSelection
