@@ -1,21 +1,63 @@
-import { Module } from '@nestjs/common'
+import {
+  Module,
+} from '@nestjs/common'
 
-import { AppController } from './app.controller'
-import { AppService } from './app.service'
-import { AuthModule } from './auth/auth.module'
-import { DriversModule } from './drivers/drivers.module'
-import { FuelLogsModule } from './fuel-logs/fuel-logs.module'
-import { MaintenanceLogsModule } from './maintenance-logs/maintenance-logs.module'
-import { PrismaModule } from './prisma/prisma.module'
-import { TransportRequestsModule } from './transport-requests/transport-requests.module'
-import { TripsModule } from './trips/trips.module'
-import { UsersModule } from './users/users.module'
-import { VehicleIssueReportsModule } from './vehicle-issue-reports/vehicle-issue-reports.module'
-import { VehiclesModule } from './vehicles/vehicles.module'
+import {
+  AppController,
+} from './app.controller'
+
+import {
+  AppService,
+} from './app.service'
+
+import {
+  AuditLogsModule,
+} from './audit-logs/audit-logs.module'
+
+import {
+  AuthModule,
+} from './auth/auth.module'
+
+import {
+  DriversModule,
+} from './drivers/drivers.module'
+
+import {
+  FuelLogsModule,
+} from './fuel-logs/fuel-logs.module'
+
+import {
+  MaintenanceLogsModule,
+} from './maintenance-logs/maintenance-logs.module'
+
+import {
+  PrismaModule,
+} from './prisma/prisma.module'
+
+import {
+  TransportRequestsModule,
+} from './transport-requests/transport-requests.module'
+
+import {
+  TripsModule,
+} from './trips/trips.module'
+
+import {
+  UsersModule,
+} from './users/users.module'
+
+import {
+  VehicleIssueReportsModule,
+} from './vehicle-issue-reports/vehicle-issue-reports.module'
+
+import {
+  VehiclesModule,
+} from './vehicles/vehicles.module'
 
 @Module({
   imports: [
     PrismaModule,
+    AuditLogsModule,
     AuthModule,
     UsersModule,
     VehiclesModule,
@@ -26,7 +68,13 @@ import { VehiclesModule } from './vehicles/vehicles.module'
     MaintenanceLogsModule,
     VehicleIssueReportsModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+
+  controllers: [
+    AppController,
+  ],
+
+  providers: [
+    AppService,
+  ],
 })
 export class AppModule {}

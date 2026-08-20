@@ -1,4 +1,5 @@
 import axios from 'axios'
+
 import {
   useEffect,
   useState,
@@ -53,9 +54,10 @@ function NewTransportRequestPage() {
   const [
     formData,
     setFormData,
-  ] = useState<FormData>(
-    initialFormData,
-  )
+  ] =
+    useState<FormData>(
+      initialFormData,
+    )
 
   const [
     pickup,
@@ -92,26 +94,22 @@ function NewTransportRequestPage() {
   const [
     routeLoading,
     setRouteLoading,
-  ] =
-    useState(false)
+  ] = useState(false)
 
   const [
     mapLoading,
     setMapLoading,
-  ] =
-    useState(false)
+  ] = useState(false)
 
   const [
     submitting,
     setSubmitting,
-  ] =
-    useState(false)
+  ] = useState(false)
 
   const [
     error,
     setError,
-  ] =
-    useState('')
+  ] = useState('')
 
   useEffect(() => {
     if (
@@ -140,20 +138,24 @@ function NewTransportRequestPage() {
                 pickup!.longitude,
 
               destinationLatitude:
-                destination!.latitude,
+                destination!
+                  .latitude,
 
               destinationLongitude:
-                destination!.longitude,
+                destination!
+                  .longitude,
             },
-
             controller.signal,
           )
 
         setRoute(result)
       } catch (error) {
         if (
-          axios.isCancel(error) ||
-          controller.signal.aborted
+          axios.isCancel(
+            error,
+          ) ||
+          controller.signal
+            .aborted
         ) {
           return
         }
@@ -170,28 +172,31 @@ function NewTransportRequestPage() {
         )
       } finally {
         if (
-          !controller.signal.aborted
+          !controller.signal
+            .aborted
         ) {
-          setRouteLoading(false)
+          setRouteLoading(
+            false,
+          )
         }
       }
     }
 
     void calculateRoute()
 
-    return () => {
+    return () =>
       controller.abort()
-    }
   }, [
     pickup,
     destination,
   ])
 
   function handleTextInput(
-    event: React.ChangeEvent<
-      HTMLInputElement |
-      HTMLTextAreaElement
-    >,
+    event:
+      React.ChangeEvent<
+        HTMLInputElement |
+          HTMLTextAreaElement
+      >,
   ) {
     const {
       name,
@@ -212,7 +217,8 @@ function NewTransportRequestPage() {
     setFormData(
       (current) => ({
         ...current,
-        pickupLocation: value,
+        pickupLocation:
+          value,
       }),
     )
 
@@ -226,7 +232,8 @@ function NewTransportRequestPage() {
     setFormData(
       (current) => ({
         ...current,
-        destination: value,
+        destination:
+          value,
       }),
     )
 
@@ -235,7 +242,8 @@ function NewTransportRequestPage() {
   }
 
   function selectPickup(
-    location: LocationSuggestion,
+    location:
+      LocationSuggestion,
   ) {
     setPickup(location)
 
@@ -253,9 +261,12 @@ function NewTransportRequestPage() {
   }
 
   function selectDestination(
-    location: LocationSuggestion,
+    location:
+      LocationSuggestion,
   ) {
-    setDestination(location)
+    setDestination(
+      location,
+    )
 
     setFormData(
       (current) => ({
@@ -290,9 +301,13 @@ function NewTransportRequestPage() {
         selectionMode ===
         'pickup'
       ) {
-        selectPickup(location)
+        selectPickup(
+          location,
+        )
       } else {
-        selectDestination(location)
+        selectDestination(
+          location,
+        )
       }
     } catch (error) {
       console.error(error)
@@ -333,7 +348,8 @@ function NewTransportRequestPage() {
   }
 
   async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
+    event:
+      React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault()
 
@@ -345,12 +361,9 @@ function NewTransportRequestPage() {
       currentUser.role !==
         'EMPLOYEE'
     ) {
-      navigate(
-        '/login',
-        {
-          replace: true,
-        },
-      )
+      navigate('/login', {
+        replace: true,
+      })
 
       return
     }
@@ -465,26 +478,80 @@ function NewTransportRequestPage() {
 
   return (
     <>
-      <header className="border-b border-slate-200 bg-white px-8 py-5">
-        <h1 className="text-xl font-bold text-slate-900">
-          New Transport Request
-        </h1>
+      <header className="flex min-h-[72px] items-center border-b border-slate-200 bg-white px-8">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-950">
+            New Transport Request
+          </h1>
 
-        <p className="text-sm text-slate-500">
-          Search for locations or select them directly on the map.
-        </p>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Plan your route and
+            submit a transportation
+            request.
+          </p>
+        </div>
       </header>
 
-      <section className="p-8">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          {error && (
-            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-              {error}
-            </div>
-          )}
+      <section className="mx-auto max-w-[1500px] p-8">
+        {/* HERO */}
 
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 px-7 py-6 text-white">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+
+          <div className="relative z-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">
+              Route planner
+            </p>
+
+            <h2 className="mt-2 text-2xl font-semibold">
+              Where do you need to
+              go?
+            </h2>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+              Search for your pickup
+              and destination or
+              select both points
+              directly on the map.
+              Fleet Pulse will
+              calculate the estimated
+              route automatically.
+            </p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <form
+          onSubmit={
+            handleSubmit
+          }
+          className="space-y-6"
+        >
+          {/* LOCATION */}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Step 1
+              </p>
+
+              <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                Select Route
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Search addresses or
+                click the map to
+                choose locations.
+              </p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
               <LocationSearchInput
                 id="pickupLocation"
                 label="Pickup Location"
@@ -501,7 +568,9 @@ function NewTransportRequestPage() {
                 onSelect={
                   selectPickup
                 }
-                disabled={busy}
+                disabled={
+                  busy
+                }
               />
 
               <LocationSearchInput
@@ -520,11 +589,13 @@ function NewTransportRequestPage() {
                 onSelect={
                   selectDestination
                 }
-                disabled={busy}
+                disabled={
+                  busy
+                }
               />
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-5 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() =>
@@ -532,15 +603,17 @@ function NewTransportRequestPage() {
                     'pickup',
                   )
                 }
-                disabled={busy}
-                className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
+                disabled={
+                  busy
+                }
+                className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
                   selectionMode ===
                   'pickup'
-                    ? 'bg-blue-600 text-white'
-                    : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                } disabled:opacity-50`}
+                    ? 'bg-slate-950 text-white'
+                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                Set Pickup on Map
+                Select Pickup on Map
               </button>
 
               <button
@@ -550,15 +623,17 @@ function NewTransportRequestPage() {
                     'destination',
                   )
                 }
-                disabled={busy}
-                className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
+                disabled={
+                  busy
+                }
+                className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
                   selectionMode ===
                   'destination'
-                    ? 'bg-red-600 text-white'
-                    : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                } disabled:opacity-50`}
+                    ? 'bg-slate-950 text-white'
+                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                Set Destination on Map
+                Select Destination
               </button>
 
               {pickup && (
@@ -567,8 +642,10 @@ function NewTransportRequestPage() {
                   onClick={
                     clearPickup
                   }
-                  disabled={busy}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  disabled={
+                    busy
+                  }
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50"
                 >
                   Clear Pickup
                 </button>
@@ -580,8 +657,10 @@ function NewTransportRequestPage() {
                   onClick={
                     clearDestination
                   }
-                  disabled={busy}
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  disabled={
+                    busy
+                  }
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50"
                 >
                   Clear Destination
                 </button>
@@ -589,12 +668,13 @@ function NewTransportRequestPage() {
             </div>
 
             {mapLoading && (
-              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm font-medium text-blue-700">
-                Finding the selected address...
-              </div>
+              <InfoMessage>
+                Finding the selected
+                address...
+              </InfoMessage>
             )}
 
-            <div className="mt-6">
+            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
               <InteractiveRouteMap
                 pickup={
                   pickupPosition
@@ -612,19 +692,23 @@ function NewTransportRequestPage() {
                 onMapClick={
                   handleMapClick
                 }
-                disabled={busy}
+                disabled={
+                  busy
+                }
               />
             </div>
 
             {routeLoading && (
-              <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-700">
-                Calculating route distance and duration...
-              </div>
+              <InfoMessage>
+                Calculating route
+                distance and estimated
+                travel time...
+              </InfoMessage>
             )}
 
             {!routeLoading &&
               route && (
-                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="mt-5 grid gap-4 sm:grid-cols-3">
                   <RouteStat
                     label="Distance"
                     value={`${route.estimatedDistanceKm.toFixed(
@@ -633,22 +717,42 @@ function NewTransportRequestPage() {
                   />
 
                   <RouteStat
-                    label="Distance in miles"
+                    label="Distance"
                     value={`${route.estimatedDistanceMiles.toFixed(
                       2,
                     )} mi`}
                   />
 
                   <RouteStat
-                    label="Estimated time"
+                    label="Estimated Time"
                     value={formatDuration(
                       route.estimatedDurationMinutes,
                     )}
                   />
                 </div>
               )}
+          </section>
 
-            <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* SCHEDULE */}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Step 2
+              </p>
+
+              <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                Schedule & Purpose
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Tell Fleet Pulse when
+                transportation is
+                needed and why.
+              </p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
               <FormField
                 label="Request Date"
                 name="requestDate"
@@ -680,70 +784,65 @@ function NewTransportRequestPage() {
               />
             </div>
 
-            <div className="mt-6">
-              <label
-                htmlFor="purpose"
-                className="mb-2 block text-sm font-semibold text-slate-700"
-              >
+            <div className="mt-5">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Purpose
               </label>
 
               <textarea
                 id="purpose"
                 name="purpose"
+                rows={5}
+                maxLength={
+                  500
+                }
+                required
                 value={
                   formData.purpose
                 }
                 onChange={
                   handleTextInput
                 }
-                placeholder="Explain why transportation is required"
-                required
-                rows={5}
-                maxLength={500}
-                disabled={
-                  submitting
-                }
-                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                placeholder="Explain why transportation is required..."
+                className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
 
-              <div className="mt-2 flex justify-end">
-                <span className="text-xs text-slate-400">
-                  {
-                    formData
-                      .purpose
-                      .length
-                  }
-                  /500
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
-              <Link
-                to="/employee"
-                className="rounded-xl border border-slate-300 px-6 py-3 text-center font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </Link>
-
-              <button
-                type="submit"
-                disabled={
-                  busy ||
-                  !pickup ||
-                  !destination ||
-                  !route
+              <p className="mt-2 text-right text-xs text-slate-400">
+                {
+                  formData.purpose
+                    .length
                 }
-                className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting
-                  ? 'Submitting Request...'
-                  : 'Submit Request'}
-              </button>
+                /500
+              </p>
             </div>
-          </form>
-        </div>
+          </section>
+
+          {/* ACTIONS */}
+
+          <div className="flex justify-end gap-3">
+            <Link
+              to="/employee"
+              className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </Link>
+
+            <button
+              type="submit"
+              disabled={
+                busy ||
+                !pickup ||
+                !destination ||
+                !route
+              }
+              className="rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {submitting
+                ? 'Submitting Request...'
+                : 'Submit Request'}
+            </button>
+          </div>
+        </form>
       </section>
     </>
   )
@@ -759,34 +858,34 @@ function FormField({
 }: {
   label: string
   name: string
-  type: 'date' | 'time'
+  type:
+    | 'date'
+    | 'time'
   value: string
-
   onChange:
     React.ChangeEventHandler<HTMLInputElement>
-
   disabled: boolean
 }) {
   return (
-    <div>
-      <label
-        htmlFor={name}
-        className="mb-2 block text-sm font-semibold text-slate-700"
-      >
+    <label>
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
         {label}
-      </label>
+      </span>
 
       <input
-        id={name}
         name={name}
         type={type}
         value={value}
-        onChange={onChange}
         required
-        disabled={disabled}
-        className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+        disabled={
+          disabled
+        }
+        onChange={
+          onChange
+        }
+        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
       />
-    </div>
+    </label>
   )
 }
 
@@ -798,14 +897,27 @@ function RouteStat({
   value: string
 }) {
   return (
-    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-      <p className="text-sm font-medium text-blue-700">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-bold text-blue-950">
+      <p className="mt-2 text-xl font-semibold text-slate-900">
         {value}
       </p>
+    </div>
+  )
+}
+
+function InfoMessage({
+  children,
+}: {
+  children:
+    React.ReactNode
+}) {
+  return (
+    <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+      {children}
     </div>
   )
 }
@@ -821,11 +933,11 @@ function formatDuration(
   const minutes =
     totalMinutes % 60
 
-  if (hours === 0) {
+  if (!hours) {
     return `${minutes} min`
   }
 
-  if (minutes === 0) {
+  if (!minutes) {
     return `${hours} hr`
   }
 
@@ -837,18 +949,25 @@ function getErrorMessage(
   fallback: string,
 ) {
   if (
-    !axios.isAxiosError(error)
+    !axios.isAxiosError(
+      error,
+    )
   ) {
     return fallback
   }
 
   const message =
-    error.response?.data?.message
+    error.response?.data
+      ?.message
 
   if (
-    Array.isArray(message)
+    Array.isArray(
+      message,
+    )
   ) {
-    return message.join(', ')
+    return message.join(
+      ', ',
+    )
   }
 
   if (

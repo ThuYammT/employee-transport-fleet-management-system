@@ -1,4 +1,5 @@
 import axios from 'axios'
+
 import {
   useEffect,
   useState,
@@ -43,48 +44,72 @@ const emptyForm: ProfileFormData = {
 }
 
 function DriverProfilePage() {
-  const [driver, setDriver] =
-    useState<Driver | null>(null)
+  const [
+    driver,
+    setDriver,
+  ] =
+    useState<Driver | null>(
+      null,
+    )
 
-  const [formData, setFormData] =
+  const [
+    formData,
+    setFormData,
+  ] =
     useState<ProfileFormData>(
       emptyForm,
     )
 
-  const [loading, setLoading] =
-    useState(true)
+  const [
+    loading,
+    setLoading,
+  ] = useState(true)
 
-  const [saving, setSaving] =
-    useState(false)
+  const [
+    saving,
+    setSaving,
+  ] = useState(false)
 
-  const [editing, setEditing] =
-    useState(false)
+  const [
+    editing,
+    setEditing,
+  ] = useState(false)
 
-  const [error, setError] =
-    useState('')
+  const [
+    error,
+    setError,
+  ] = useState('')
 
-  const [success, setSuccess] =
-    useState('')
+  const [
+    success,
+    setSuccess,
+  ] = useState('')
 
   useEffect(() => {
     void loadProfile()
   }, [])
 
   async function loadProfile() {
-    const currentUser = getCurrentUser()
+    const currentUser =
+      getCurrentUser()
 
     if (!currentUser) {
       setError(
         'Your login session was not found. Please sign in again.',
       )
+
       setLoading(false)
       return
     }
 
-    if (currentUser.role !== 'DRIVER') {
+    if (
+      currentUser.role !==
+      'DRIVER'
+    ) {
       setError(
         'This page is only available for driver accounts.',
       )
+
       setLoading(false)
       return
     }
@@ -98,9 +123,14 @@ function DriverProfilePage() {
           currentUser.id,
         )
 
-      setDriver(driverData)
+      setDriver(
+        driverData,
+      )
+
       setFormData(
-        createFormData(driverData),
+        createFormData(
+          driverData,
+        ),
       )
     } catch (error) {
       console.error(error)
@@ -117,13 +147,18 @@ function DriverProfilePage() {
   }
 
   function handleChange(
-    field: keyof ProfileFormData,
+    field:
+      keyof ProfileFormData,
+
     value: string,
   ) {
-    setFormData((current) => ({
-      ...current,
-      [field]: value,
-    }))
+    setFormData(
+      (current) => ({
+        ...current,
+        [field]:
+          value,
+      }),
+    )
 
     setError('')
     setSuccess('')
@@ -135,7 +170,9 @@ function DriverProfilePage() {
     }
 
     setFormData(
-      createFormData(driver),
+      createFormData(
+        driver,
+      ),
     )
 
     setEditing(true)
@@ -146,7 +183,9 @@ function DriverProfilePage() {
   function handleCancel() {
     if (driver) {
       setFormData(
-        createFormData(driver),
+        createFormData(
+          driver,
+        ),
       )
     }
 
@@ -156,7 +195,8 @@ function DriverProfilePage() {
   }
 
   async function handleSubmit(
-  event: SyntheticEvent<HTMLFormElement>,
+    event:
+      SyntheticEvent<HTMLFormElement>,
   ) {
     event.preventDefault()
 
@@ -165,10 +205,15 @@ function DriverProfilePage() {
     }
 
     const validationError =
-      validateForm(formData)
+      validateForm(
+        formData,
+      )
 
     if (validationError) {
-      setError(validationError)
+      setError(
+        validationError,
+      )
+
       return
     }
 
@@ -181,13 +226,17 @@ function DriverProfilePage() {
         await updateDriver(
           driver.id,
           {
-            name: formData.name.trim(),
+            name:
+              formData.name.trim(),
+
             email:
               formData.email
                 .trim()
                 .toLowerCase(),
+
             phone:
               formData.phone.trim(),
+
             licenseNumber:
               formData.licenseNumber.trim(),
 
@@ -200,10 +249,14 @@ function DriverProfilePage() {
           },
         )
 
-      setDriver(updatedDriver)
+      setDriver(
+        updatedDriver,
+      )
 
       setFormData(
-        createFormData(updatedDriver),
+        createFormData(
+          updatedDriver,
+        ),
       )
 
       const currentUser =
@@ -212,11 +265,18 @@ function DriverProfilePage() {
       if (currentUser) {
         saveCurrentUser({
           ...currentUser,
-          name: updatedDriver.user.name,
+
+          name:
+            updatedDriver
+              .user.name,
+
           email:
-            updatedDriver.user.email,
+            updatedDriver
+              .user.email,
+
           status:
-            updatedDriver.user.status,
+            updatedDriver
+              .user.status,
         })
       }
 
@@ -240,37 +300,43 @@ function DriverProfilePage() {
   }
 
   if (loading) {
-    return <ProfileLoadingState />
+    return (
+      <ProfileLoadingState />
+    )
   }
 
   return (
     <>
-      <header className="border-b border-slate-200 bg-white px-6 py-4 lg:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">
-              Driver Profile
-            </h1>
+      {/* HEADER */}
 
-            <p className="mt-1 text-sm text-slate-500">
-              View and update your personal
-              information.
-            </p>
-          </div>
+      <header className="flex min-h-[72px] items-center justify-between border-b border-slate-200 bg-white px-8">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-950">
+            Driver Profile
+          </h1>
 
-          {!editing && driver && (
+          <p className="mt-0.5 text-sm text-slate-500">
+            Review your account,
+            contact and driver
+            information.
+          </p>
+        </div>
+
+        {!editing &&
+          driver && (
             <button
               type="button"
-              onClick={handleEdit}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+              onClick={
+                handleEdit
+              }
+              className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
             >
               Edit Profile
             </button>
           )}
-        </div>
       </header>
 
-      <main className="bg-slate-50 p-6 lg:p-8">
+      <section className="mx-auto max-w-[1600px] p-8">
         {error && (
           <AlertMessage
             type="error"
@@ -281,20 +347,23 @@ function DriverProfilePage() {
         {success && (
           <AlertMessage
             type="success"
-            message={success}
+            message={
+              success
+            }
           />
         )}
 
         {!driver ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">
-              Driver profile unavailable
+          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">
+              Driver profile
+              unavailable
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              We could not find a driver
-              profile connected to this
-              account.
+              We could not find a
+              driver profile connected
+              to this account.
             </p>
 
             <button
@@ -302,99 +371,182 @@ function DriverProfilePage() {
               onClick={() =>
                 void loadProfile()
               }
-              className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+              className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
             >
               Try Again
             </button>
           </div>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-[320px_1fr]">
-            <ProfileSummaryCard
-              driver={driver}
-            />
+          <>
+            {/* HERO */}
+
+            <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 px-7 py-7 text-white shadow-sm">
+              <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+
+              <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-5">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-xl font-bold text-white ring-1 ring-white/10">
+                    {getInitials(
+                      driver
+                        .user.name,
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">
+                      Driver account
+                    </p>
+
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+                      {
+                        driver
+                          .user
+                          .name
+                      }
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-300">
+                      {
+                        driver
+                          .user
+                          .email
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <HeroStatus
+                    label="Availability"
+                    value={formatStatus(
+                      driver.availabilityStatus,
+                    )}
+                  />
+
+                  <HeroStatus
+                    label="Vehicle"
+                    value={
+                      driver
+                        .assignedVehicle
+                        ?.plateNumber ??
+                      'None'
+                    }
+                  />
+                </div>
+              </div>
+            </div>
 
             {editing ? (
               <ProfileEditForm
-                formData={formData}
-                saving={saving}
-                onChange={handleChange}
-                onCancel={handleCancel}
-                onSubmit={handleSubmit}
+                formData={
+                  formData
+                }
+                saving={
+                  saving
+                }
+                onChange={
+                  handleChange
+                }
+                onCancel={
+                  handleCancel
+                }
+                onSubmit={
+                  handleSubmit
+                }
               />
             ) : (
-              <ProfileDetails
-                driver={driver}
-              />
+              <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
+                <ProfileSummaryCard
+                  driver={
+                    driver
+                  }
+                />
+
+                <ProfileDetails
+                  driver={
+                    driver
+                  }
+                />
+              </div>
             )}
-          </div>
+          </>
         )}
-      </main>
+      </section>
     </>
   )
 }
+
+/* =========================================================
+   SUMMARY
+========================================================= */
 
 function ProfileSummaryCard({
   driver,
 }: {
   driver: Driver
 }) {
-  const initials =
-    getInitials(driver.user.name)
-
   return (
-    <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-center">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-2xl font-bold text-blue-700">
-          {initials}
+    <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        Driver summary
+      </p>
+
+      <div className="mt-5 flex items-center gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-sm font-bold text-white">
+          {getInitials(
+            driver.user.name,
+          )}
         </div>
 
-        <h2 className="mt-4 text-xl font-bold text-slate-900">
-          {driver.user.name}
-        </h2>
-
-        <p className="mt-1 text-sm text-slate-500">
-          {driver.user.email}
-        </p>
-
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <StatusBadge
-            label={formatStatus(
-              driver.availabilityStatus,
-            )}
-            type={getDriverStatusType(
-              driver.availabilityStatus,
-            )}
-          />
-
-          <StatusBadge
-            label={formatStatus(
-              driver.user.status,
-            )}
-            type={
-              driver.user.status ===
-              'ACTIVE'
-                ? 'success'
-                : 'neutral'
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-slate-950">
+            {
+              driver.user
+                .name
             }
-          />
+          </p>
+
+          <p className="mt-0.5 truncate text-xs text-slate-500">
+            {
+              driver.user
+                .email
+            }
+          </p>
         </div>
       </div>
 
-      <div className="mt-6 space-y-4 border-t border-slate-200 pt-5">
+      <div className="mt-5 flex flex-wrap gap-2">
+        <DriverStatusBadge
+          status={
+            driver.availabilityStatus
+          }
+        />
+
+        <AccountStatusBadge
+          status={
+            driver.user.status
+          }
+        />
+      </div>
+
+      <div className="mt-6 space-y-4 border-t border-slate-100 pt-5">
         <SummaryItem
           label="Driver ID"
           value={`DRV-${driver.id}`}
         />
 
         <SummaryItem
-          label="License Number"
-          value={driver.licenseNumber}
+          label="License"
+          value={
+            driver.licenseNumber
+          }
         />
 
         <SummaryItem
-          label="Assigned Vehicle"
+          label="Vehicle"
           value={
-            driver.assignedVehicle
+            driver
+              .assignedVehicle
               ?.plateNumber ??
             'Not assigned'
           }
@@ -411,131 +563,161 @@ function ProfileSummaryCard({
   )
 }
 
+/* =========================================================
+   DETAILS
+========================================================= */
+
 function ProfileDetails({
   driver,
 }: {
   driver: Driver
 }) {
   return (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-5">
-          <h2 className="text-lg font-bold text-slate-900">
-            Personal Information
-          </h2>
+    <div className="space-y-6">
+      <InformationSection
+        title="Personal Information"
+        description="Information connected to your user account."
+      >
+        <InformationItem
+          label="Full Name"
+          value={
+            driver.user.name
+          }
+        />
 
-          <p className="mt-1 text-sm text-slate-500">
-            Information connected to your
-            user account.
-          </p>
-        </div>
+        <InformationItem
+          label="Email Address"
+          value={
+            driver.user.email
+          }
+        />
 
-        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-          <InformationItem
-            label="Full Name"
-            value={driver.user.name}
-          />
+        <InformationItem
+          label="Phone Number"
+          value={
+            driver.user.phone ||
+            'Not provided'
+          }
+        />
 
-          <InformationItem
-            label="Email Address"
-            value={driver.user.email}
-          />
+        <InformationItem
+          label="Account Role"
+          value={formatStatus(
+            driver.user.role,
+          )}
+        />
 
-          <InformationItem
-            label="Phone Number"
-            value={
-              driver.user.phone ||
-              'Not provided'
-            }
-          />
+        <InformationItem
+          label="Account Status"
+          value={formatStatus(
+            driver.user.status,
+          )}
+        />
 
-          <InformationItem
-            label="Account Role"
-            value={formatStatus(
-              driver.user.role,
-            )}
-          />
+        <InformationItem
+          label="Last Updated"
+          value={formatDateTime(
+            driver.updatedAt,
+          )}
+        />
+      </InformationSection>
 
-          <InformationItem
-            label="Account Status"
-            value={formatStatus(
-              driver.user.status,
-            )}
-          />
+      <InformationSection
+        title="Driver & Fleet Information"
+        description="Driving credentials and current vehicle assignment."
+      >
+        <InformationItem
+          label="Driver Profile ID"
+          value={`DRV-${driver.id}`}
+        />
 
-          <InformationItem
-            label="Last Updated"
-            value={formatDateTime(
-              driver.updatedAt,
-            )}
-          />
-        </div>
-      </section>
+        <InformationItem
+          label="License Number"
+          value={
+            driver.licenseNumber
+          }
+        />
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-5">
-          <h2 className="text-lg font-bold text-slate-900">
-            Driver Information
-          </h2>
+        <InformationItem
+          label="Availability"
+          value={formatStatus(
+            driver.availabilityStatus,
+          )}
+        />
 
-          <p className="mt-1 text-sm text-slate-500">
-            Driving and fleet-related
-            information.
-          </p>
-        </div>
+        <InformationItem
+          label="Assigned Vehicle"
+          value={
+            driver
+              .assignedVehicle
+              ?.plateNumber ??
+            'No vehicle assigned'
+          }
+        />
 
-        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-          <InformationItem
-            label="Driver Profile ID"
-            value={`DRV-${driver.id}`}
-          />
+        <InformationItem
+          label="Vehicle Type"
+          value={
+            driver
+              .assignedVehicle
+              ?.vehicleType ??
+            'Unavailable'
+          }
+        />
 
-          <InformationItem
-            label="License Number"
-            value={driver.licenseNumber}
-          />
-
-          <InformationItem
-            label="Availability"
-            value={formatStatus(
-              driver.availabilityStatus,
-            )}
-          />
-
-          <InformationItem
-            label="Assigned Vehicle"
-            value={
-              driver.assignedVehicle
-                ?.plateNumber ??
-              'No vehicle assigned'
-            }
-          />
-
-          <InformationItem
-            label="Vehicle Type"
-            value={
-              driver.assignedVehicle
-                ?.vehicleType ??
-              'Unavailable'
-            }
-          />
-
-          <InformationItem
-            label="Vehicle Status"
-            value={
-              driver.assignedVehicle
-                ? formatStatus(
-                    driver.assignedVehicle
-                      .status,
-                  )
-                : 'Unavailable'
-            }
-          />
-        </div>
-      </section>
+        <InformationItem
+          label="Vehicle Status"
+          value={
+            driver
+              .assignedVehicle
+              ? formatStatus(
+                  driver
+                    .assignedVehicle
+                    .status,
+                )
+              : 'Unavailable'
+          }
+        />
+      </InformationSection>
     </div>
   )
 }
+
+function InformationSection({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description: string
+  children: ReactNode
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Profile
+        </p>
+
+        <h3 className="mt-1 text-lg font-semibold text-slate-950">
+          {title}
+        </h3>
+
+        <p className="mt-1 text-sm text-slate-500">
+          {description}
+        </p>
+      </div>
+
+      <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+/* =========================================================
+   EDIT
+========================================================= */
 
 function ProfileEditForm({
   formData,
@@ -544,53 +726,77 @@ function ProfileEditForm({
   onCancel,
   onSubmit,
 }: {
-  formData: ProfileFormData
-  saving: boolean
+  formData:
+    ProfileFormData
+
+  saving:
+    boolean
 
   onChange: (
-    field: keyof ProfileFormData,
-    value: string,
+    field:
+      keyof ProfileFormData,
+
+    value:
+      string,
   ) => void
 
-  onCancel: () => void
+  onCancel:
+    () => void
 
   onSubmit: (
-  event: SyntheticEvent<HTMLFormElement>,
+    event:
+      SyntheticEvent<HTMLFormElement>,
   ) => void
 }) {
   return (
     <form
-      onSubmit={onSubmit}
-      className="space-y-5"
+      onSubmit={
+        onSubmit
+      }
+      className="space-y-6"
     >
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5">
-          <h2 className="text-lg font-bold text-slate-900">
-            Edit Personal Information
-          </h2>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Account details
+          </p>
+
+          <h3 className="mt-1 text-lg font-semibold text-slate-950">
+            Edit Personal
+            Information
+          </h3>
 
           <p className="mt-1 text-sm text-slate-500">
-            Update your name, email and
-            contact information.
+            Update your name,
+            contact information and
+            driver license.
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
           <FormField
             label="Full Name"
             required
           >
             <input
               type="text"
-              value={formData.name}
-              onChange={(event) =>
+              value={
+                formData.name
+              }
+              onChange={(
+                event,
+              ) =>
                 onChange(
                   'name',
-                  event.target.value,
+                  event
+                    .target
+                    .value,
                 )
               }
               placeholder="Enter your full name"
-              className={inputClassName}
+              className={
+                inputClass
+              }
             />
           </FormField>
 
@@ -600,30 +806,46 @@ function ProfileEditForm({
           >
             <input
               type="email"
-              value={formData.email}
-              onChange={(event) =>
+              value={
+                formData.email
+              }
+              onChange={(
+                event,
+              ) =>
                 onChange(
                   'email',
-                  event.target.value,
+                  event
+                    .target
+                    .value,
                 )
               }
               placeholder="Enter your email"
-              className={inputClassName}
+              className={
+                inputClass
+              }
             />
           </FormField>
 
           <FormField label="Phone Number">
             <input
               type="tel"
-              value={formData.phone}
-              onChange={(event) =>
+              value={
+                formData.phone
+              }
+              onChange={(
+                event,
+              ) =>
                 onChange(
                   'phone',
-                  event.target.value,
+                  event
+                    .target
+                    .value,
                 )
               }
               placeholder="Enter your phone number"
-              className={inputClassName}
+              className={
+                inputClass
+              }
             />
           </FormField>
 
@@ -636,44 +858,63 @@ function ProfileEditForm({
               value={
                 formData.licenseNumber
               }
-              onChange={(event) =>
+              onChange={(
+                event,
+              ) =>
                 onChange(
                   'licenseNumber',
-                  event.target.value,
+                  event
+                    .target
+                    .value,
                 )
               }
               placeholder="Enter license number"
-              className={inputClassName}
+              className={
+                inputClass
+              }
             />
           </FormField>
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5">
-          <h2 className="text-lg font-bold text-slate-900">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Account security
+          </p>
+
+          <h3 className="mt-1 text-lg font-semibold text-slate-950">
             Change Password
-          </h2>
+          </h3>
 
           <p className="mt-1 text-sm text-slate-500">
-            Leave these fields empty to
-            keep your current password.
+            Leave both password
+            fields empty to keep your
+            current password.
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
           <FormField label="New Password">
             <input
               type="password"
-              value={formData.password}
-              onChange={(event) =>
+              value={
+                formData.password
+              }
+              onChange={(
+                event,
+              ) =>
                 onChange(
                   'password',
-                  event.target.value,
+                  event
+                    .target
+                    .value,
                 )
               }
               placeholder="At least 8 characters"
-              className={inputClassName}
+              className={
+                inputClass
+              }
             />
           </FormField>
 
@@ -683,33 +924,45 @@ function ProfileEditForm({
               value={
                 formData.confirmPassword
               }
-              onChange={(event) =>
+              onChange={(
+                event,
+              ) =>
                 onChange(
                   'confirmPassword',
-                  event.target.value,
+                  event
+                    .target
+                    .value,
                 )
               }
               placeholder="Repeat new password"
-              className={inputClassName}
+              className={
+                inputClass
+              }
             />
           </FormField>
         </div>
       </section>
 
-      <div className="flex flex-wrap justify-end gap-3">
+      <div className="flex justify-end gap-3">
         <button
           type="button"
-          disabled={saving}
-          onClick={onCancel}
-          className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+          disabled={
+            saving
+          }
+          onClick={
+            onCancel
+          }
+          className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
         >
           Cancel
         </button>
 
         <button
           type="submit"
-          disabled={saving}
-          className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={
+            saving
+          }
+          className="rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving
             ? 'Saving Changes...'
@@ -720,29 +973,27 @@ function ProfileEditForm({
   )
 }
 
-function FormField({
+/* =========================================================
+   COMPONENTS
+========================================================= */
+
+function HeroStatus({
   label,
-  required,
-  children,
+  value,
 }: {
   label: string
-  required?: boolean
-  children: ReactNode
+  value: string
 }) {
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+    <div className="min-w-[140px] rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3">
+      <p className="text-xs text-slate-400">
         {label}
+      </p>
 
-        {required && (
-          <span className="ml-1 text-red-500">
-            *
-          </span>
-        )}
-      </span>
-
-      {children}
-    </label>
+      <p className="mt-1 truncate text-sm font-semibold text-white">
+        {value}
+      </p>
+    </div>
   )
 }
 
@@ -754,12 +1005,12 @@ function InformationItem({
   value: string
 }) {
   return (
-    <div className="border-b border-slate-100 pb-3">
+    <div className="border-b border-slate-100 pb-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </p>
 
-      <p className="mt-1 font-semibold text-slate-800">
+      <p className="mt-1 break-words text-sm font-semibold text-slate-800">
         {value}
       </p>
     </div>
@@ -786,37 +1037,89 @@ function SummaryItem({
   )
 }
 
-function StatusBadge({
-  label,
-  type,
+function DriverStatusBadge({
+  status,
 }: {
-  label: string
-  type:
-    | 'success'
-    | 'warning'
-    | 'info'
-    | 'neutral'
+  status:
+    DriverAvailabilityStatus
 }) {
-  const styles = {
-    success:
-      'bg-green-100 text-green-700',
+  const styles:
+    Record<
+      DriverAvailabilityStatus,
+      string
+    > = {
+    AVAILABLE:
+      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
 
-    warning:
-      'bg-amber-100 text-amber-700',
+    ON_TRIP:
+      'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
 
-    info:
-      'bg-blue-100 text-blue-700',
+    OFF_DUTY:
+      'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
 
-    neutral:
-      'bg-slate-200 text-slate-700',
+    INACTIVE:
+      'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
   }
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${styles[type]}`}
+      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${styles[status]}`}
     >
-      {label}
+      {formatStatus(
+        status,
+      )}
     </span>
+  )
+}
+
+function AccountStatusBadge({
+  status,
+}: {
+  status:
+    string
+}) {
+  const active =
+    status ===
+    'ACTIVE'
+
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${
+        active
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+          : 'bg-slate-100 text-slate-600 ring-slate-200'
+      }`}
+    >
+      {formatStatus(
+        status,
+      )}
+    </span>
+  )
+}
+
+function FormField({
+  label,
+  required,
+  children,
+}: {
+  label: string
+  required?: boolean
+  children: ReactNode
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+
+        {required && (
+          <span className="ml-1 text-red-500">
+            *
+          </span>
+        )}
+      </span>
+
+      {children}
+    </label>
   )
 }
 
@@ -824,17 +1127,21 @@ function AlertMessage({
   type,
   message,
 }: {
-  type: 'error' | 'success'
-  message: string
+  type:
+    | 'error'
+    | 'success'
+
+  message:
+    string
 }) {
   const style =
     type === 'error'
       ? 'border-red-200 bg-red-50 text-red-700'
-      : 'border-green-200 bg-green-50 text-green-700'
+      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
 
   return (
     <div
-      className={`mb-5 rounded-xl border px-4 py-3 text-sm font-medium ${style}`}
+      className={`mb-6 rounded-xl border px-4 py-3 text-sm font-medium ${style}`}
     >
       {message}
     </div>
@@ -843,50 +1150,70 @@ function AlertMessage({
 
 function ProfileLoadingState() {
   return (
-    <div className="flex min-h-[70vh] items-center justify-center bg-slate-50 p-8">
+    <div className="flex min-h-[70vh] items-center justify-center bg-[#f6f7f9] p-8">
       <div className="text-center">
         <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
         <p className="mt-4 text-sm text-slate-500">
-          Loading your profile...
+          Loading your
+          profile...
         </p>
       </div>
     </div>
   )
 }
 
-const inputClassName =
-  'w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+const inputClass =
+  'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+
+/* =========================================================
+   FORM HELPERS
+========================================================= */
 
 function createFormData(
   driver: Driver,
 ): ProfileFormData {
   return {
-    name: driver.user.name,
-    email: driver.user.email,
+    name:
+      driver.user.name,
+
+    email:
+      driver.user.email,
+
     phone:
-      driver.user.phone ?? '',
+      driver.user.phone ??
+      '',
+
     licenseNumber:
       driver.licenseNumber,
+
     password: '',
+
     confirmPassword: '',
   }
 }
 
 function validateForm(
-  formData: ProfileFormData,
+  formData:
+    ProfileFormData,
 ): string | null {
-  if (!formData.name.trim()) {
+  if (
+    !formData.name.trim()
+  ) {
     return 'Full name is required.'
   }
 
   if (
-    formData.name.trim().length < 2
+    formData.name
+      .trim()
+      .length < 2
   ) {
     return 'Full name must contain at least 2 characters.'
   }
 
-  if (!formData.email.trim()) {
+  if (
+    !formData.email.trim()
+  ) {
     return 'Email address is required.'
   }
 
@@ -906,7 +1233,8 @@ function validateForm(
 
   if (
     formData.password &&
-    formData.password.length < 8
+    formData.password.length <
+      8
   ) {
     return 'New password must contain at least 8 characters.'
   }
@@ -932,57 +1260,56 @@ function isValidEmail(
 function getInitials(
   name: string,
 ): string {
-  const initials = name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) =>
-      part.charAt(0).toUpperCase(),
-    )
-    .join('')
+  const initials =
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map(
+        (part) =>
+          part
+            .charAt(0)
+            .toUpperCase(),
+      )
+      .join('')
 
-  return initials || 'DR'
+  return (
+    initials ||
+    'DR'
+  )
 }
 
-function getDriverStatusType(
-  status: DriverAvailabilityStatus,
-):
-  | 'success'
-  | 'warning'
-  | 'info'
-  | 'neutral' {
-  switch (status) {
-    case 'AVAILABLE':
-      return 'success'
-
-    case 'ON_TRIP':
-      return 'info'
-
-    case 'OFF_DUTY':
-      return 'warning'
-
-    case 'INACTIVE':
-      return 'neutral'
-  }
-}
+/* =========================================================
+   FORMATTERS
+========================================================= */
 
 function formatStatus(
   value: string,
 ): string {
   return value
-    .replaceAll('_', ' ')
+    .replaceAll(
+      '_',
+      ' ',
+    )
     .toLowerCase()
-    .replace(/\b\w/g, (character) =>
-      character.toUpperCase(),
+    .replace(
+      /\b\w/g,
+      (character) =>
+        character.toUpperCase(),
     )
 }
 
 function formatDate(
   value: string,
 ): string {
-  const date = new Date(value)
+  const date =
+    new Date(value)
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
     return value
   }
 
@@ -999,9 +1326,14 @@ function formatDate(
 function formatDateTime(
   value: string,
 ): string {
-  const date = new Date(value)
+  const date =
+    new Date(value)
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
     return value
   }
 
@@ -1017,26 +1349,46 @@ function formatDateTime(
   )
 }
 
+/* =========================================================
+   API ERROR
+========================================================= */
+
 function getApiErrorMessage(
   error: unknown,
   fallbackMessage: string,
 ): string {
-  if (!axios.isAxiosError(error)) {
+  if (
+    !axios.isAxiosError(
+      error,
+    )
+  ) {
     return fallbackMessage
   }
 
   const message =
-    error.response?.data?.message
+    error.response?.data
+      ?.message
 
-  if (Array.isArray(message)) {
-    return message.join(', ')
+  if (
+    Array.isArray(
+      message,
+    )
+  ) {
+    return message.join(
+      ', ',
+    )
   }
 
-  if (typeof message === 'string') {
+  if (
+    typeof message ===
+    'string'
+  ) {
     return message
   }
 
-  if (!error.response) {
+  if (
+    !error.response
+  ) {
     return 'Unable to connect to the server.'
   }
 

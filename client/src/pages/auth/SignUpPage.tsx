@@ -1,11 +1,19 @@
 import axios from 'axios'
-import { useEffect, useState } from 'react'
+
+import {
+  useEffect,
+  useState,
+} from 'react'
+
 import {
   Link,
   useNavigate,
 } from 'react-router-dom'
 
-import { register } from '../../services/auth.service'
+import {
+  register,
+} from '../../services/auth.service'
+
 import {
   getCurrentUser,
   getPortalPath,
@@ -20,7 +28,8 @@ type SignUpFormData = {
   confirmPassword: string
 }
 
-const initialFormData: SignUpFormData = {
+const initialFormData:
+  SignUpFormData = {
   name: '',
   email: '',
   phone: '',
@@ -29,39 +38,63 @@ const initialFormData: SignUpFormData = {
 }
 
 function SignUpPage() {
-  const navigate = useNavigate()
+  const navigate =
+    useNavigate()
 
-  const [formData, setFormData] =
-    useState<SignUpFormData>(initialFormData)
+  const [
+    formData,
+    setFormData,
+  ] =
+    useState<SignUpFormData>(
+      initialFormData,
+    )
 
-  const [showPassword, setShowPassword] =
-    useState(false)
+  const [
+    showPassword,
+    setShowPassword,
+  ] = useState(false)
 
-  const [submitting, setSubmitting] =
-    useState(false)
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false)
 
-  const [error, setError] = useState('')
+  const [
+    error,
+    setError,
+  ] = useState('')
 
   useEffect(() => {
-    const currentUser = getCurrentUser()
+    const currentUser =
+      getCurrentUser()
 
     if (currentUser) {
       navigate(
-        getPortalPath(currentUser.role),
-        { replace: true },
+        getPortalPath(
+          currentUser.role,
+        ),
+        {
+          replace: true,
+        },
       )
     }
   }, [navigate])
 
   function handleChange(
-    event: React.ChangeEvent<HTMLInputElement>,
+    event:
+      React.ChangeEvent<HTMLInputElement>,
   ) {
-    const { name, value } = event.target
+    const {
+      name,
+      value,
+    } = event.target
 
-    setFormData((current) => ({
-      ...current,
-      [name]: value,
-    }))
+    setFormData(
+      (current) => ({
+        ...current,
+        [name]: value,
+      }),
+    )
 
     if (error) {
       setError('')
@@ -69,26 +102,39 @@ function SignUpPage() {
   }
 
   async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
+    event:
+      React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault()
 
-    const name = formData.name.trim()
-    const email = formData.email
-      .trim()
-      .toLowerCase()
+    const name =
+      formData.name.trim()
 
-    if (!name || !email || !formData.password) {
+    const email =
+      formData.email
+        .trim()
+        .toLowerCase()
+
+    if (
+      !name ||
+      !email ||
+      !formData.password
+    ) {
       setError(
         'Name, email and password are required.',
       )
+
       return
     }
 
-    if (formData.password.length < 8) {
+    if (
+      formData.password
+        .length < 8
+    ) {
       setError(
         'Password must contain at least 8 characters.',
       )
+
       return
     }
 
@@ -96,7 +142,10 @@ function SignUpPage() {
       formData.password !==
       formData.confirmPassword
     ) {
-      setError('Passwords do not match.')
+      setError(
+        'Passwords do not match.',
+      )
+
       return
     }
 
@@ -104,19 +153,30 @@ function SignUpPage() {
       setSubmitting(true)
       setError('')
 
-      const employee = await register({
-        name,
-        email,
-        password: formData.password,
-        phone:
-          formData.phone.trim() || undefined,
-      })
+      const employee =
+        await register({
+          name,
+          email,
 
-      saveCurrentUser(employee)
+          password:
+            formData.password,
 
-      navigate('/employee', {
-        replace: true,
-      })
+          phone:
+            formData.phone
+              .trim() ||
+            undefined,
+        })
+
+      saveCurrentUser(
+        employee,
+      )
+
+      navigate(
+        '/employee',
+        {
+          replace: true,
+        },
+      )
     } catch (error) {
       console.error(error)
 
@@ -132,155 +192,236 @@ function SignUpPage() {
   }
 
   return (
-    <main className="grid min-h-screen bg-slate-100 lg:grid-cols-2">
-      <section className="hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 font-bold">
-            FM
+    <main className="grid min-h-screen bg-[#f6f7f9] lg:grid-cols-[1.08fr_0.92fr]">
+      {/* BRAND */}
+
+      <section className="relative hidden overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <div className="pointer-events-none absolute -right-32 top-20 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl" />
+
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sm font-bold text-slate-950">
+            FP
           </div>
 
           <div>
-            <h1 className="font-bold">
-              Fleet Management
+            <h1 className="text-lg font-semibold">
+              Fleet Pulse
             </h1>
 
-            <p className="text-sm text-slate-400">
-              Employee Transport System
+            <p className="text-xs text-slate-400">
+              Fleet Operations &
+              Employee Transport
             </p>
           </div>
         </div>
 
-        <div className="max-w-xl">
-          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-blue-400">
-            Employee registration
+        <div className="relative z-10 max-w-xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-300">
+            Employee transport
           </p>
 
-          <h2 className="text-5xl font-bold leading-tight">
-            Your company transportation starts here.
+          <h2 className="mt-5 text-5xl font-semibold leading-[1.08] tracking-tight">
+            Your workplace journey
+            starts here.
           </h2>
 
-          <p className="mt-6 max-w-lg leading-7 text-slate-400">
-            Create an employee account, submit transport
-            requests and monitor their approval status.
+          <p className="mt-6 max-w-lg text-base leading-7 text-slate-300">
+            Create an employee
+            account to request
+            transportation, select
+            routes on the map and
+            follow approval progress
+            from one workspace.
           </p>
+
+          <div className="mt-10 space-y-3">
+            <Benefit>
+              Search pickup and
+              destination locations
+            </Benefit>
+
+            <Benefit>
+              View route distance and
+              estimated travel time
+            </Benefit>
+
+            <Benefit>
+              Follow request approval
+              and trip assignment
+            </Benefit>
+          </div>
         </div>
 
-        <p className="text-sm text-slate-500">
-          New registrations are created as employee
-          accounts.
+        <p className="relative z-10 text-xs text-slate-500">
+          Employee accounts only •
+          Fleet Pulse
         </p>
       </section>
 
+      {/* FORM */}
+
       <section className="flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-lg">
-          <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm sm:p-10">
-            <div className="mb-8">
-              <p className="mb-2 text-sm font-semibold text-blue-600">
-                Create your account
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-xs font-bold text-white">
+              FP
+            </div>
+
+            <div>
+              <p className="font-semibold text-slate-950">
+                Fleet Pulse
               </p>
 
-              <h1 className="text-3xl font-bold text-slate-900">
-                Employee sign up
+              <p className="text-xs text-slate-400">
+                Employee Transport
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+            <div className="mb-7">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">
+                Employee registration
+              </p>
+
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+                Create your account
               </h1>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Complete the form below to access the
-                employee transport portal.
+                Join Fleet Pulse to
+                submit and monitor
+                workplace transport
+                requests.
               </p>
             </div>
 
             {error && (
               <div
                 role="alert"
-                className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+                className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
               >
                 {error}
               </div>
             )}
 
             <form
-              onSubmit={handleSubmit}
+              onSubmit={
+                handleSubmit
+              }
               className="space-y-5"
             >
               <FormField
-                label="Full name"
+                label="Full Name"
                 name="name"
-                value={formData.name}
-                onChange={handleChange}
+                value={
+                  formData.name
+                }
+                onChange={
+                  handleChange
+                }
                 placeholder="Enter your full name"
                 autoComplete="name"
               />
 
               <FormField
-                label="Email address"
+                label="Email Address"
                 name="email"
                 type="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="employee@example.com"
+                value={
+                  formData.email
+                }
+                onChange={
+                  handleChange
+                }
+                placeholder="name@company.com"
                 autoComplete="email"
               />
 
               <FormField
-                label="Phone number"
+                label="Phone Number"
                 name="phone"
                 type="tel"
-                value={formData.phone}
-                onChange={handleChange}
+                value={
+                  formData.phone
+                }
+                onChange={
+                  handleChange
+                }
                 placeholder="Optional phone number"
                 autoComplete="tel"
-                required={false}
+                required={
+                  false
+                }
               />
 
               <PasswordField
                 label="Password"
                 name="password"
-                value={formData.password}
-                onChange={handleChange}
+                value={
+                  formData.password
+                }
+                onChange={
+                  handleChange
+                }
                 placeholder="At least 8 characters"
-                autoComplete="new-password"
-                showPassword={showPassword}
+                showPassword={
+                  showPassword
+                }
                 onToggle={() =>
                   setShowPassword(
-                    (current) => !current,
+                    (current) =>
+                      !current,
                   )
                 }
               />
 
               <PasswordField
-                label="Confirm password"
+                label="Confirm Password"
                 name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="Enter your password again"
-                autoComplete="new-password"
-                showPassword={showPassword}
+                value={
+                  formData.confirmPassword
+                }
+                onChange={
+                  handleChange
+                }
+                placeholder="Enter password again"
+                showPassword={
+                  showPassword
+                }
                 onToggle={() =>
                   setShowPassword(
-                    (current) => !current,
+                    (current) =>
+                      !current,
                   )
                 }
               />
 
-              <div className="rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-500">
-                Your account will be registered with the
-                Employee role. Driver and administrator
-                accounts are managed internally.
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700">
+                This registration
+                creates an Employee
+                account. Driver and
+                Administrator accounts
+                are created internally
+                by fleet management.
               </div>
 
               <button
                 type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={
+                  submitting
+                }
+                className="w-full rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-5 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting
-                  ? 'Creating account...'
-                  : 'Create employee account'}
+                  ? 'Creating Account...'
+                  : 'Create Fleet Pulse Account'}
               </button>
             </form>
 
             <p className="mt-7 text-center text-sm text-slate-500">
-              Already have an account?{' '}
+              Already have an
+              account?{' '}
               <Link
                 to="/login"
                 className="font-semibold text-blue-600 hover:text-blue-700"
@@ -292,6 +433,25 @@ function SignUpPage() {
         </div>
       </section>
     </main>
+  )
+}
+
+function Benefit({
+  children,
+}: {
+  children:
+    React.ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-3 text-sm text-slate-300">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-400/15 text-xs font-bold text-blue-200 ring-1 ring-blue-400/20">
+        ✓
+      </span>
+
+      <span>
+        {children}
+      </span>
+    </div>
   )
 }
 
@@ -308,33 +468,40 @@ function FormField({
   label: string
   name: string
   value: string
-  onChange: React.ChangeEventHandler<HTMLInputElement>
+
+  onChange:
+    React.ChangeEventHandler<HTMLInputElement>
+
   placeholder: string
   autoComplete: string
   type?: string
   required?: boolean
 }) {
   return (
-    <div>
-      <label
-        htmlFor={name}
-        className="mb-2 block text-sm font-semibold text-slate-700"
-      >
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
         {label}
-      </label>
+      </span>
 
       <input
-        id={name}
         name={name}
         type={type}
         value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        required={required}
-        className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+        onChange={
+          onChange
+        }
+        placeholder={
+          placeholder
+        }
+        autoComplete={
+          autoComplete
+        }
+        required={
+          required
+        }
+        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
       />
-    </div>
+    </label>
   )
 }
 
@@ -344,50 +511,59 @@ function PasswordField({
   value,
   onChange,
   placeholder,
-  autoComplete,
   showPassword,
   onToggle,
 }: {
   label: string
   name: string
   value: string
-  onChange: React.ChangeEventHandler<HTMLInputElement>
+
+  onChange:
+    React.ChangeEventHandler<HTMLInputElement>
+
   placeholder: string
-  autoComplete: string
   showPassword: boolean
   onToggle: () => void
 }) {
   return (
-    <div>
-      <label
-        htmlFor={name}
-        className="mb-2 block text-sm font-semibold text-slate-700"
-      >
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
         {label}
-      </label>
+      </span>
 
       <div className="relative">
         <input
-          id={name}
           name={name}
-          type={showPassword ? 'text' : 'password'}
+          type={
+            showPassword
+              ? 'text'
+              : 'password'
+          }
           value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
+          onChange={
+            onChange
+          }
+          placeholder={
+            placeholder
+          }
+          autoComplete="new-password"
           required
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-20 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-20 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
 
         <button
           type="button"
-          onClick={onToggle}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500 hover:text-slate-800"
+          onClick={
+            onToggle
+          }
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500 hover:text-slate-900"
         >
-          {showPassword ? 'Hide' : 'Show'}
+          {showPassword
+            ? 'Hide'
+            : 'Show'}
         </button>
       </div>
-    </div>
+    </label>
   )
 }
 
@@ -395,22 +571,37 @@ function getApiErrorMessage(
   error: unknown,
   fallbackMessage: string,
 ): string {
-  if (!axios.isAxiosError(error)) {
+  if (
+    !axios.isAxiosError(
+      error,
+    )
+  ) {
     return fallbackMessage
   }
 
-  const message = error.response?.data?.message
+  const message =
+    error.response?.data
+      ?.message
 
-  if (Array.isArray(message)) {
-    return message.join(', ')
+  if (
+    Array.isArray(
+      message,
+    )
+  ) {
+    return message.join(
+      ', ',
+    )
   }
 
-  if (typeof message === 'string') {
+  if (
+    typeof message ===
+    'string'
+  ) {
     return message
   }
 
   if (!error.response) {
-    return 'Unable to connect to the server. Please check your internet connection.'
+    return 'Unable to connect to Fleet Pulse. Please check your connection and try again.'
   }
 
   return fallbackMessage

@@ -57,6 +57,16 @@ enum VehicleIssueStatus {
   RESOLVED
 }
 
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  ACCOUNT_CREATED
+  ACCOUNT_UPDATED
+  ACCOUNT_ACTIVATED
+  ACCOUNT_DEACTIVATED
+  ADMIN_CREATED
+}
+
 model User {
   id           Int        @id @default(autoincrement())
   name         String
@@ -68,6 +78,9 @@ model User {
 
   driverProfile     Driver?
   transportRequests TransportRequest[]
+
+  performedAuditLogs AuditLog[] @relation("AuditActor")
+  receivedAuditLogs  AuditLog[] @relation("AuditTarget")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -89,8 +102,9 @@ model Vehicle {
   fuelLogs FuelLog[]
 
   maintenanceLogs MaintenanceLog[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Driver {
@@ -100,10 +114,12 @@ model Driver {
   availabilityStatus DriverAvailabilityStatus @default(AVAILABLE)
   assignedVehicleId  Int?
 
-  user            User      @relation(fields: [userId], references: [id])
-  assignedVehicle Vehicle?  @relation(fields: [assignedVehicleId], references: [id])
-  trips           Trip[]
-  fuelLogs        FuelLog[]
+  user            User     @relation(fields: [userId], references: [id])
+  assignedVehicle Vehicle? @relation(fields: [assignedVehicleId], references: [id])
+
+  trips Trip[]
+
+  fuelLogs FuelLog[]
 
   issueReports VehicleIssueReport[]
 
@@ -146,9 +162,10 @@ model Trip {
   endTime   DateTime?
   status    TripStatus @default(SCHEDULED)
 
-  request  TransportRequest @relation(fields: [requestId], references: [id])
-  driver   Driver           @relation(fields: [driverId], references: [id])
-  vehicle  Vehicle          @relation(fields: [vehicleId], references: [id])
+  request TransportRequest @relation(fields: [requestId], references: [id])
+  driver  Driver           @relation(fields: [driverId], references: [id])
+  vehicle Vehicle          @relation(fields: [vehicleId], references: [id])
+
   fuelLogs FuelLog[]
 
   createdAt DateTime @default(now())
@@ -156,15 +173,15 @@ model Trip {
 }
 
 model FuelLog {
-  id            Int      @id @default(autoincrement())
-  vehicleId     Int
-  driverId      Int
-  tripId        Int?
-  fuelDate      DateTime
-  liters        Float
-  cost          Float
-  fuelStation   String?
-  receiptPhoto  String?
+  id           Int      @id @default(autoincrement())
+  vehicleId    Int
+  driverId     Int
+  tripId       Int?
+  fuelDate     DateTime
+  liters       Float
+  cost         Float
+  fuelStation  String?
+  receiptPhoto String?
 
   vehicle Vehicle @relation(fields: [vehicleId], references: [id])
   driver  Driver  @relation(fields: [driverId], references: [id])
@@ -196,9 +213,33 @@ model VehicleIssueReport {
   issueTitle  String
   description String
   status      VehicleIssueStatus @default(REPORTED)
-  reportedAt  DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+
+  reportedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   vehicle Vehicle @relation(fields: [vehicleId], references: [id])
   driver  Driver  @relation(fields: [driverId], references: [id])
+}
+
+model AuditLog {
+  id Int @id @default(autoincrement())
+
+  actorUserId  Int?
+  targetUserId Int?
+
+  action      AuditAction
+  description String
+
+  ipAddress String?
+  userAgent String?
+
+  actorUser  User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  targetUser User? @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([targetUserId])
+  @@index([action])
+  @@index([createdAt])
 }

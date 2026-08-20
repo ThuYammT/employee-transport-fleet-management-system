@@ -1,5 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+
+import {
+  Link,
+  useNavigate,
+} from 'react-router-dom'
 
 import {
   deleteTransportRequest,
@@ -12,360 +20,605 @@ import type {
   TransportRequestStatus,
 } from '../../types/transport-request'
 
-import { getCurrentUser } from '../../utils/user-session'
+import {
+  getCurrentUser,
+} from '../../utils/user-session'
 
-type StatusFilter = 'ALL' | TransportRequestStatus
+type StatusFilter =
+  | 'ALL'
+  | TransportRequestStatus
 
 function MyRequestsPage() {
   const navigate = useNavigate()
 
-  const [requests, setRequests] = useState<TransportRequest[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] =
+  const [
+    requests,
+    setRequests,
+  ] =
+    useState<TransportRequest[]>([])
+
+  const [
+    searchTerm,
+    setSearchTerm,
+  ] = useState('')
+
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] =
     useState<StatusFilter>('ALL')
 
-  const [loading, setLoading] = useState(true)
-  const [actionLoadingId, setActionLoadingId] =
+  const [
+    loading,
+    setLoading,
+  ] = useState(true)
+
+  const [
+    actionLoadingId,
+    setActionLoadingId,
+  ] =
     useState<number | null>(null)
 
-  const [error, setError] = useState('')
+  const [
+    error,
+    setError,
+  ] = useState('')
 
   useEffect(() => {
-    async function loadRequests() {
-      const currentUser = getCurrentUser()
-
-      if (
-        !currentUser ||
-        currentUser.role !== 'EMPLOYEE'
-      ) {
-        navigate('/login', { replace: true })
-        return
-      }
-
-      const employeeId = currentUser.id
-      try {
-        setLoading(true)
-        setError('')
-
-        const data = await getTransportRequests()
-
-        const employeeRequests = data
-          .filter((request) => request.employeeId === employeeId)
-          .sort(
-            (firstRequest, secondRequest) =>
-              new Date(secondRequest.createdAt).getTime() -
-              new Date(firstRequest.createdAt).getTime(),
-          )
-
-        setRequests(employeeRequests)
-      } catch (error) {
-        console.error(error)
-        setError('Failed to load your transport requests.')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     void loadRequests()
-  }, [navigate])
+  }, [])
 
-  async function refreshRequests() {
-    const currentUser = getCurrentUser()
+  async function loadRequests() {
+    const currentUser =
+      getCurrentUser()
 
     if (
       !currentUser ||
-      currentUser.role !== 'EMPLOYEE'
+      currentUser.role !==
+        'EMPLOYEE'
     ) {
-      navigate('/login', { replace: true })
-      return
-    }
-
-    const employeeId = currentUser.id
-
-    const data = await getTransportRequests()
-
-    const employeeRequests = data
-      .filter((request) => request.employeeId === employeeId)
-      .sort(
-        (firstRequest, secondRequest) =>
-          new Date(secondRequest.createdAt).getTime() -
-          new Date(firstRequest.createdAt).getTime(),
-      )
-
-    setRequests(employeeRequests)
-  }
-
-  async function handleCancel(request: TransportRequest) {
-    if (request.status !== 'PENDING') {
-      window.alert('Only pending requests can be cancelled.')
-      return
-    }
-
-    const confirmed = window.confirm(
-      `Cancel transport request REQ-${request.id}?`,
-    )
-
-    if (!confirmed) {
-      return
-    }
-
-    try {
-      setActionLoadingId(request.id)
-
-      await updateTransportRequest(request.id, {
-        status: 'CANCELLED',
+      navigate('/login', {
+        replace: true,
       })
 
-      await refreshRequests()
-    } catch (error) {
-      console.error(error)
-      window.alert('Failed to cancel the request.')
-    } finally {
-      setActionLoadingId(null)
-    }
-  }
-
-  async function handleDelete(request: TransportRequest) {
-    if (request.status !== 'CANCELLED') {
-      window.alert('Only cancelled requests can be deleted.')
       return
     }
 
-    const confirmed = window.confirm(
-      `Permanently delete request REQ-${request.id}?`,
+    try {
+      setLoading(true)
+      setError('')
+
+      const data =
+        await getTransportRequests()
+
+      const employeeRequests =
+        data
+          .filter(
+            (request) =>
+              request.employeeId ===
+              currentUser.id,
+          )
+          .sort(
+            (
+              first,
+              second,
+            ) =>
+              new Date(
+                second.createdAt,
+              ).getTime() -
+              new Date(
+                first.createdAt,
+              ).getTime(),
+          )
+
+      setRequests(
+        employeeRequests,
+      )
+    } catch (error) {
+      console.error(error)
+
+      setError(
+        'Failed to load your transport requests.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function refreshRequests() {
+    const currentUser =
+      getCurrentUser()
+
+    if (
+      !currentUser ||
+      currentUser.role !==
+        'EMPLOYEE'
+    ) {
+      navigate('/login', {
+        replace: true,
+      })
+
+      return
+    }
+
+    const data =
+      await getTransportRequests()
+
+    setRequests(
+      data
+        .filter(
+          (request) =>
+            request.employeeId ===
+            currentUser.id,
+        )
+        .sort(
+          (
+            first,
+            second,
+          ) =>
+            new Date(
+              second.createdAt,
+            ).getTime() -
+            new Date(
+              first.createdAt,
+            ).getTime(),
+        ),
     )
+  }
+
+  async function handleCancel(
+    request:
+      TransportRequest,
+  ) {
+    if (
+      request.status !==
+      'PENDING'
+    ) {
+      window.alert(
+        'Only pending requests can be cancelled.',
+      )
+
+      return
+    }
+
+    const confirmed =
+      window.confirm(
+        `Cancel transport request REQ-${request.id}?`,
+      )
 
     if (!confirmed) {
       return
     }
 
     try {
-      setActionLoadingId(request.id)
+      setActionLoadingId(
+        request.id,
+      )
 
-      await deleteTransportRequest(request.id)
+      await updateTransportRequest(
+        request.id,
+        {
+          status:
+            'CANCELLED',
+        },
+      )
+
       await refreshRequests()
     } catch (error) {
       console.error(error)
-      window.alert('Failed to delete the request.')
+
+      window.alert(
+        'Failed to cancel the request.',
+      )
     } finally {
-      setActionLoadingId(null)
+      setActionLoadingId(
+        null,
+      )
     }
   }
 
-  const filteredRequests = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase()
+  async function handleDelete(
+    request:
+      TransportRequest,
+  ) {
+    if (
+      request.status !==
+      'CANCELLED'
+    ) {
+      window.alert(
+        'Only cancelled requests can be deleted.',
+      )
 
-    return requests.filter((request) => {
-      const matchesStatus =
-        statusFilter === 'ALL' ||
-        request.status === statusFilter
+      return
+    }
 
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        request.id.toString().includes(normalizedSearch) ||
-        request.pickupLocation
+    const confirmed =
+      window.confirm(
+        `Permanently delete request REQ-${request.id}?`,
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setActionLoadingId(
+        request.id,
+      )
+
+      await deleteTransportRequest(
+        request.id,
+      )
+
+      await refreshRequests()
+    } catch (error) {
+      console.error(error)
+
+      window.alert(
+        'Failed to delete the request.',
+      )
+    } finally {
+      setActionLoadingId(
+        null,
+      )
+    }
+  }
+
+  const filteredRequests =
+    useMemo(() => {
+      const search =
+        searchTerm
+          .trim()
           .toLowerCase()
-          .includes(normalizedSearch) ||
-        request.destination
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        request.purpose
-          .toLowerCase()
-          .includes(normalizedSearch)
 
-      return matchesStatus && matchesSearch
-    })
-  }, [requests, searchTerm, statusFilter])
+      return requests.filter(
+        (request) => {
+          const matchesStatus =
+            statusFilter ===
+              'ALL' ||
+            request.status ===
+              statusFilter
 
-  const filters: StatusFilter[] = [
-    'ALL',
-    'PENDING',
-    'APPROVED',
-    'REJECTED',
-    'CANCELLED',
-  ]
+          const matchesSearch =
+            !search ||
+            request.id
+              .toString()
+              .includes(
+                search,
+              ) ||
+            request.pickupLocation
+              .toLowerCase()
+              .includes(
+                search,
+              ) ||
+            request.destination
+              .toLowerCase()
+              .includes(
+                search,
+              ) ||
+            request.purpose
+              .toLowerCase()
+              .includes(
+                search,
+              )
+
+          return (
+            matchesStatus &&
+            matchesSearch
+          )
+        },
+      )
+    }, [
+      requests,
+      searchTerm,
+      statusFilter,
+    ])
+
+  const filters:
+    StatusFilter[] = [
+      'ALL',
+      'PENDING',
+      'APPROVED',
+      'REJECTED',
+      'CANCELLED',
+    ]
 
   return (
     <>
-      <header className="flex min-h-20 items-center justify-between border-b border-slate-200 bg-white px-8 py-4">
+      <header className="flex min-h-[72px] items-center justify-between border-b border-slate-200 bg-white px-8">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-950">
             My Requests
           </h1>
 
-          <p className="text-sm text-slate-500">
-            Review and manage your transport requests.
+          <p className="mt-0.5 text-sm text-slate-500">
+            Review and manage your
+            transport requests.
           </p>
         </div>
 
         <Link
           to="/employee/new-request"
-          className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
         >
-          New Request
+          + New Request
         </Link>
       </header>
 
-      <section className="p-8">
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-4 border-b border-slate-200 p-6 xl:flex-row xl:items-center xl:justify-between">
+      <section className="mx-auto max-w-[1600px] p-8">
+        {/* HERO */}
+
+        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 px-7 py-6 text-white">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+
+          <div className="relative z-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">
+              Request management
+            </p>
+
+            <h2 className="mt-2 text-2xl font-semibold">
+              Transport Request
+              History
+            </h2>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+              Search your previous
+              requests, follow their
+              current approval status
+              and open route details.
+            </p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {/* FILTERS */}
+
+          <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap gap-2">
-              {filters.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setStatusFilter(status)}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                    statusFilter === status
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+              {filters.map(
+                (status) => (
+                  <button
+                    key={
+                      status
+                    }
+                    type="button"
+                    onClick={() =>
+                      setStatusFilter(
+                        status,
+                      )
+                    }
+                    className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                      statusFilter ===
+                      status
+                        ? 'bg-slate-950 text-white'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {status.replaceAll(
+                      '_',
+                      ' ',
+                    )}
+                  </button>
+                ),
+              )}
             </div>
 
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) =>
-                setSearchTerm(event.target.value)
-              }
-              placeholder="Search ID, route or purpose..."
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 xl:w-80"
-            />
+            <div className="flex items-center gap-3">
+              <input
+                type="search"
+                value={
+                  searchTerm
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setSearchTerm(
+                    event.target
+                      .value,
+                  )
+                }
+                placeholder="Search request, route or purpose..."
+                className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 xl:w-80"
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  void loadRequests()
+                }
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
 
-          {loading && (
-            <p className="p-6 text-slate-500">
-              Loading transport requests...
-            </p>
-          )}
+          {loading ? (
+            <div className="p-12 text-center">
+              <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
-          {error && (
-            <div className="m-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-600">
-              {error}
+              <p className="mt-4 text-sm text-slate-500">
+                Loading requests...
+              </p>
             </div>
-          )}
+          ) : filteredRequests.length ===
+            0 ? (
+            <div className="p-12 text-center">
+              <p className="font-semibold text-slate-700">
+                No matching requests
+              </p>
 
-          {!loading &&
-            !error &&
-            filteredRequests.length === 0 && (
-              <div className="p-12 text-center">
-                <p className="font-semibold text-slate-700">
-                  No matching requests found.
-                </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Change the filters or
+                submit a new request.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1050px] table-fixed text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="w-[110px] px-6 py-4">
+                      Request
+                    </th>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  Create a request or change your search filters.
-                </p>
+                    <th className="w-[280px] py-4 pr-6">
+                      Route
+                    </th>
 
-                <Link
-                  to="/employee/new-request"
-                  className="mt-5 inline-block rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
-                >
-                  Create Request
-                </Link>
-              </div>
-            )}
+                    <th className="w-[150px] py-4 pr-6">
+                      Schedule
+                    </th>
 
-          {!loading &&
-            !error &&
-            filteredRequests.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1050px] text-left text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="px-6 py-4">Request ID</th>
-                      <th className="py-4 pr-6">Route</th>
-                      <th className="py-4 pr-6">Date</th>
-                      <th className="py-4 pr-6">Time</th>
-                      <th className="py-4 pr-6">Purpose</th>
-                      <th className="py-4 pr-6">Status</th>
-                      <th className="py-4 pr-6">Actions</th>
-                    </tr>
-                  </thead>
+                    <th className="w-[230px] py-4 pr-6">
+                      Purpose
+                    </th>
 
-                  <tbody>
-                    {filteredRequests.map((request) => {
-                      const isProcessing =
-                        actionLoadingId === request.id
+                    <th className="w-[130px] py-4 pr-6">
+                      Status
+                    </th>
+
+                    <th className="w-[210px] py-4 pr-6 text-right">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredRequests.map(
+                    (request) => {
+                      const processing =
+                        actionLoadingId ===
+                        request.id
 
                       return (
                         <tr
-                          key={request.id}
-                          className="border-b border-slate-100"
+                          key={
+                            request.id
+                          }
+                          className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/80"
                         >
-                          <td className="px-6 py-4 font-semibold text-slate-900">
-                            REQ-{request.id}
-                          </td>
-
-                          <td className="py-4 pr-6">
-                            <p className="font-medium text-slate-800">
-                              {request.pickupLocation}
-                            </p>
-
-                            <p className="text-xs text-slate-500">
-                              to {request.destination}
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-900">
+                              REQ-
+                              {
+                                request.id
+                              }
                             </p>
                           </td>
 
                           <td className="py-4 pr-6">
-                            {formatDate(request.requestDate)}
+                            <div className="max-w-[250px]">
+                              <p
+                                title={
+                                  request.pickupLocation
+                                }
+                                className="truncate font-semibold text-slate-800"
+                              >
+                                {
+                                  request.pickupLocation
+                                }
+                              </p>
+
+                              <p
+                                title={
+                                  request.destination
+                                }
+                                className="mt-1 truncate text-xs text-slate-500"
+                              >
+                                to{' '}
+                                {
+                                  request.destination
+                                }
+                              </p>
+                            </div>
+                          </td>
+
+                          <td className="whitespace-nowrap py-4 pr-6">
+                            <p className="font-medium text-slate-700">
+                              {formatDate(
+                                request.requestDate,
+                              )}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              {formatTime(
+                                request.requestTime,
+                              )}
+                            </p>
                           </td>
 
                           <td className="py-4 pr-6">
-                            {formatTime(request.requestTime)}
-                          </td>
-
-                          <td className="max-w-56 py-4 pr-6">
                             <p
-                              className="truncate"
-                              title={request.purpose}
+                              className="truncate text-slate-600"
+                              title={
+                                request.purpose
+                              }
                             >
-                              {request.purpose}
+                              {
+                                request.purpose
+                              }
                             </p>
                           </td>
 
                           <td className="py-4 pr-6">
-                            <StatusBadge status={request.status} />
+                            <StatusBadge
+                              status={
+                                request.status
+                              }
+                            />
                           </td>
 
                           <td className="py-4 pr-6">
-                            <div className="flex items-center gap-3">
+                            <div className="flex justify-end gap-2">
                               <Link
                                 to={`/employee/requests/${request.id}`}
-                                className="font-semibold text-blue-600 hover:text-blue-700"
+                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                               >
                                 View
                               </Link>
 
-                              {request.status === 'PENDING' && (
+                              {request.status ===
+                                'PENDING' && (
                                 <button
                                   type="button"
-                                  disabled={isProcessing}
-                                  onClick={() =>
-                                    handleCancel(request)
+                                  disabled={
+                                    processing
                                   }
-                                  className="font-semibold text-amber-600 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  onClick={() =>
+                                    void handleCancel(
+                                      request,
+                                    )
+                                  }
+                                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
                                 >
-                                  {isProcessing
+                                  {processing
                                     ? 'Cancelling...'
                                     : 'Cancel'}
                                 </button>
                               )}
 
-                              {request.status === 'CANCELLED' && (
+                              {request.status ===
+                                'CANCELLED' && (
                                 <button
                                   type="button"
-                                  disabled={isProcessing}
-                                  onClick={() =>
-                                    handleDelete(request)
+                                  disabled={
+                                    processing
                                   }
-                                  className="font-semibold text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  onClick={() =>
+                                    void handleDelete(
+                                      request,
+                                    )
+                                  }
+                                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50"
                                 >
-                                  {isProcessing
+                                  {processing
                                     ? 'Deleting...'
                                     : 'Delete'}
                                 </button>
@@ -374,29 +627,46 @@ function MyRequestsPage() {
                           </td>
                         </tr>
                       )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-        </div>
+                    },
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </section>
     </>
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    PENDING: 'bg-amber-100 text-amber-700',
-    APPROVED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
-    CANCELLED: 'bg-slate-200 text-slate-700',
+function StatusBadge({
+  status,
+}: {
+  status: string
+}) {
+  const styles:
+    Record<
+      string,
+      string
+    > = {
+    PENDING:
+      'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+
+    APPROVED:
+      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+
+    REJECTED:
+      'bg-red-50 text-red-700 ring-1 ring-red-200',
+
+    CANCELLED:
+      'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
   }
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-        styles[status] ?? 'bg-slate-100 text-slate-700'
+      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+        styles[status] ??
+        'bg-slate-100 text-slate-600'
       }`}
     >
       {status}
@@ -404,22 +674,39 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function formatDate(value: string) {
-  const date = new Date(value)
+function formatDate(
+  value: string,
+) {
+  const date =
+    new Date(value)
 
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return date.toLocaleDateString()
+  return Number.isNaN(
+    date.getTime(),
+  )
+    ? value
+    : date.toLocaleDateString(
+        undefined,
+        {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        },
+      )
 }
 
-function formatTime(value: string) {
+function formatTime(
+  value: string,
+) {
   if (!value) {
-    return '-'
+    return '—'
   }
 
-  const [hours, minutes] = value.split(':').map(Number)
+  const [
+    hours,
+    minutes,
+  ] = value
+    .split(':')
+    .map(Number)
 
   if (
     Number.isNaN(hours) ||
@@ -428,13 +715,21 @@ function formatTime(value: string) {
     return value
   }
 
-  const date = new Date()
-  date.setHours(hours, minutes, 0, 0)
+  const date =
+    new Date()
 
-  return date.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  date.setHours(
+    hours,
+    minutes,
+  )
+
+  return date.toLocaleTimeString(
+    [],
+    {
+      hour: '2-digit',
+      minute: '2-digit',
+    },
+  )
 }
 
 export default MyRequestsPage
