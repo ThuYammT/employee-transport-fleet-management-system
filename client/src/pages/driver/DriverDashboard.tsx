@@ -1,10 +1,14 @@
 import axios from 'axios'
+
 import {
   useEffect,
   useMemo,
   useState,
 } from 'react'
-import { Link } from 'react-router-dom'
+
+import {
+  Link,
+} from 'react-router-dom'
 
 import {
   getDriverByUserId,
@@ -15,6 +19,14 @@ import {
   getTripsByDriverId,
   startTrip,
 } from '../../services/trip.service'
+
+import {
+  createFuelLog,
+} from '../../services/fuel-log.service'
+
+import {
+  createVehicleIssueReport,
+} from '../../services/vehicle-issue-report.service'
 
 import {
   getCurrentUser,
@@ -30,6 +42,32 @@ import type {
   TripStatus,
 } from '../../types/trip'
 
+type PostTripForm = {
+  fuelDate: string
+  fuelStation: string
+  liters: string
+  cost: string
+
+  issueTitle: string
+  issueDescription: string
+}
+
+function createEmptyPostTripForm(): PostTripForm {
+  return {
+    fuelDate:
+      new Date()
+        .toISOString()
+        .split('T')[0],
+
+    fuelStation: '',
+    liters: '',
+    cost: '',
+
+    issueTitle: '',
+    issueDescription: '',
+  }
+}
+
 function DriverDashboard() {
   const [driver, setDriver] =
     useState<Driver | null>(null)
@@ -40,8 +78,34 @@ function DriverDashboard() {
   const [loading, setLoading] =
     useState(true)
 
-  const [actionTripId, setActionTripId] =
-    useState<number | null>(null)
+  const [
+    actionTripId,
+    setActionTripId,
+  ] = useState<number | null>(null)
+
+  const [
+    completingTrip,
+    setCompletingTrip,
+  ] = useState<Trip | null>(
+    null,
+  )
+
+  const [
+    postTripForm,
+    setPostTripForm,
+  ] = useState<PostTripForm>(
+    createEmptyPostTripForm(),
+  )
+
+  const [
+    postTripError,
+    setPostTripError,
+  ] = useState('')
+
+  const [
+    savingPostTrip,
+    setSavingPostTrip,
+  ] = useState(false)
 
   const [error, setError] =
     useState('')
@@ -51,20 +115,26 @@ function DriverDashboard() {
   }, [])
 
   async function loadDashboard() {
-    const currentUser = getCurrentUser()
+    const currentUser =
+      getCurrentUser()
 
     if (!currentUser) {
       setError(
         'Your login session was not found. Please sign in again.',
       )
+
       setLoading(false)
       return
     }
 
-    if (currentUser.role !== 'DRIVER') {
+    if (
+      currentUser.role !==
+      'DRIVER'
+    ) {
       setError(
         'This dashboard is only available for driver accounts.',
       )
+
       setLoading(false)
       return
     }
@@ -83,8 +153,15 @@ function DriverDashboard() {
           driverData.id,
         )
 
-      setDriver(driverData)
-      setTrips(sortTrips(tripData))
+      setDriver(
+        driverData,
+      )
+
+      setTrips(
+        sortTrips(
+          tripData,
+        ),
+      )
     } catch (error) {
       console.error(error)
 
@@ -99,159 +176,425 @@ function DriverDashboard() {
     }
   }
 
-  const scheduledTrips = useMemo(
-    () =>
-      trips.filter(
-        (trip) =>
-          trip.status === 'SCHEDULED',
-      ),
-    [trips],
-  )
-
-  const inProgressTrips = useMemo(
-    () =>
-      trips.filter(
-        (trip) =>
-          trip.status === 'IN_PROGRESS',
-      ),
-    [trips],
-  )
-
-  const completedTrips = useMemo(
-    () =>
-      trips.filter(
-        (trip) =>
-          trip.status === 'COMPLETED',
-      ),
-    [trips],
-  )
-
-  const cancelledTrips = useMemo(
-    () =>
-      trips.filter(
-        (trip) =>
-          trip.status === 'CANCELLED',
-      ),
-    [trips],
-  )
-
-  const activeTrip = useMemo(() => {
-    const inProgressTrip =
-      trips.find(
-        (trip) =>
-          trip.status === 'IN_PROGRESS',
-      )
-
-    if (inProgressTrip) {
-      return inProgressTrip
-    }
-
-    return scheduledTrips[0] ?? null
-  }, [trips, scheduledTrips])
-
-  const upcomingTrips = useMemo(
-    () =>
-      scheduledTrips
-        .filter(
+  const scheduledTrips =
+    useMemo(
+      () =>
+        trips.filter(
           (trip) =>
-            trip.id !== activeTrip?.id,
+            trip.status ===
+            'SCHEDULED',
+        ),
+      [trips],
+    )
+
+  const inProgressTrips =
+    useMemo(
+      () =>
+        trips.filter(
+          (trip) =>
+            trip.status ===
+            'IN_PROGRESS',
+        ),
+      [trips],
+    )
+
+  const completedTrips =
+    useMemo(
+      () =>
+        trips.filter(
+          (trip) =>
+            trip.status ===
+            'COMPLETED',
+        ),
+      [trips],
+    )
+
+  const cancelledTrips =
+    useMemo(
+      () =>
+        trips.filter(
+          (trip) =>
+            trip.status ===
+            'CANCELLED',
+        ),
+      [trips],
+    )
+
+  const activeTrip =
+    useMemo(() => {
+      const inProgressTrip =
+        trips.find(
+          (trip) =>
+            trip.status ===
+            'IN_PROGRESS',
         )
-        .slice(0, 5),
-    [scheduledTrips, activeTrip],
-  )
+
+      if (inProgressTrip) {
+        return inProgressTrip
+      }
+
+      return (
+        scheduledTrips[0] ??
+        null
+      )
+    }, [
+      trips,
+      scheduledTrips,
+    ])
+
+  const upcomingTrips =
+    useMemo(
+      () =>
+        scheduledTrips
+          .filter(
+            (trip) =>
+              trip.id !==
+              activeTrip?.id,
+          )
+          .slice(0, 5),
+      [
+        scheduledTrips,
+        activeTrip,
+      ],
+    )
 
   async function handleStartTrip(
     trip: Trip,
   ) {
-    const confirmed = window.confirm(
-      `Start TRIP-${trip.id}?`,
-    )
+    const confirmed =
+      window.confirm(
+        `Start TRIP-${trip.id}?`,
+      )
 
     if (!confirmed) {
       return
     }
 
-    await performTripAction(
-      trip.id,
-      startTrip,
-      'Failed to start the trip.',
-    )
-  }
-
-  async function handleCompleteTrip(
-    trip: Trip,
-  ) {
-    const confirmed = window.confirm(
-      `Complete TRIP-${trip.id}?`,
-    )
-
-    if (!confirmed) {
-      return
-    }
-
-    await performTripAction(
-      trip.id,
-      completeTrip,
-      'Failed to complete the trip.',
-    )
-  }
-
-  async function performTripAction(
-    tripId: number,
-    action: (
-      id: number,
-    ) => Promise<Trip>,
-    fallbackMessage: string,
-  ) {
     try {
-      setActionTripId(tripId)
+      setActionTripId(
+        trip.id,
+      )
+
       setError('')
 
       const updatedTrip =
-        await action(tripId)
+        await startTrip(
+          trip.id,
+        )
 
-      setTrips((currentTrips) =>
-        sortTrips(
-          currentTrips.map((trip) =>
-            trip.id === updatedTrip.id
-              ? updatedTrip
-              : trip,
+      setTrips(
+        (currentTrips) =>
+          sortTrips(
+            currentTrips.map(
+              (item) =>
+                item.id ===
+                updatedTrip.id
+                  ? updatedTrip
+                  : item,
+            ),
           ),
-        ),
       )
 
-      if (driver) {
-        setDriver({
-          ...driver,
+      setDriver(
+        (currentDriver) =>
+          currentDriver
+            ? {
+                ...currentDriver,
 
-          availabilityStatus:
-            updatedTrip.status ===
-            'COMPLETED'
-              ? 'AVAILABLE'
-              : 'ON_TRIP',
-        })
-      }
+                availabilityStatus:
+                  'ON_TRIP',
+              }
+            : currentDriver,
+      )
     } catch (error) {
       console.error(error)
 
       setError(
         getApiErrorMessage(
           error,
-          fallbackMessage,
+          'Failed to start the trip.',
         ),
       )
     } finally {
-      setActionTripId(null)
+      setActionTripId(
+        null,
+      )
+    }
+  }
+
+  /* =====================================================
+     OPEN POST-TRIP REPORT
+  ===================================================== */
+
+  function handleCompleteTrip(
+    trip: Trip,
+  ) {
+    if (
+      trip.status !==
+      'IN_PROGRESS'
+    ) {
+      setError(
+        'Only an in-progress trip can be completed.',
+      )
+
+      return
+    }
+
+    setCompletingTrip(
+      trip,
+    )
+
+    setPostTripForm(
+      createEmptyPostTripForm(),
+    )
+
+    setPostTripError('')
+  }
+
+  function closePostTripModal() {
+    if (savingPostTrip) {
+      return
+    }
+
+    setCompletingTrip(
+      null,
+    )
+
+    setPostTripForm(
+      createEmptyPostTripForm(),
+    )
+
+    setPostTripError('')
+  }
+
+  /* =====================================================
+     SAVE POST-TRIP REPORT
+  ===================================================== */
+
+  async function handlePostTripSubmit(
+    event:
+      React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault()
+
+    if (
+      !completingTrip ||
+      !driver
+    ) {
+      return
+    }
+
+    const fuelStation =
+      postTripForm.fuelStation.trim()
+
+    const litersText =
+      postTripForm.liters.trim()
+
+    const costText =
+      postTripForm.cost.trim()
+
+    const issueTitle =
+      postTripForm.issueTitle.trim()
+
+    const issueDescription =
+      postTripForm.issueDescription.trim()
+
+    const hasFuelData =
+      Boolean(fuelStation) ||
+      Boolean(litersText) ||
+      Boolean(costText)
+
+    const hasIssueData =
+      Boolean(issueTitle) ||
+      Boolean(issueDescription)
+
+    let liters = 0
+    let cost = 0
+
+    if (hasFuelData) {
+      liters =
+        Number(litersText)
+
+      cost =
+        Number(costText)
+
+      if (
+        !litersText ||
+        Number.isNaN(liters) ||
+        liters <= 0
+      ) {
+        setPostTripError(
+          'Please enter a valid fuel amount greater than 0 litres.',
+        )
+
+        return
+      }
+
+      if (
+        !costText ||
+        Number.isNaN(cost) ||
+        cost < 0
+      ) {
+        setPostTripError(
+          'Please enter a valid fuel cost.',
+        )
+
+        return
+      }
+    }
+
+    if (hasIssueData) {
+      if (
+        !issueTitle ||
+        !issueDescription
+      ) {
+        setPostTripError(
+          'Please enter both the issue title and description, or leave both fields blank.',
+        )
+
+        return
+      }
+
+      if (
+        issueTitle.length < 3
+      ) {
+        setPostTripError(
+          'Issue title must contain at least 3 characters.',
+        )
+
+        return
+      }
+
+      if (
+        issueDescription.length <
+        10
+      ) {
+        setPostTripError(
+          'Issue description must contain at least 10 characters.',
+        )
+
+        return
+      }
+    }
+
+    const confirmed =
+      window.confirm(
+        `Complete TRIP-${completingTrip.id}?`,
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setSavingPostTrip(
+        true,
+      )
+
+      setPostTripError('')
+      setError('')
+
+      if (hasFuelData) {
+        await createFuelLog({
+          vehicleId:
+            completingTrip.vehicleId,
+
+          driverId:
+            driver.id,
+
+          tripId:
+            completingTrip.id,
+
+          fuelDate:
+            postTripForm.fuelDate,
+
+          liters,
+
+          cost,
+
+          fuelStation:
+            fuelStation ||
+            undefined,
+        })
+      }
+
+      if (hasIssueData) {
+        await createVehicleIssueReport({
+          vehicleId:
+            completingTrip.vehicleId,
+
+          driverId:
+            driver.id,
+
+          issueTitle,
+
+          description:
+            issueDescription,
+        })
+      }
+
+      const updatedTrip =
+        await completeTrip(
+          completingTrip.id,
+        )
+
+      setTrips(
+        (currentTrips) =>
+          sortTrips(
+            currentTrips.map(
+              (trip) =>
+                trip.id ===
+                updatedTrip.id
+                  ? updatedTrip
+                  : trip,
+            ),
+          ),
+      )
+
+      setDriver(
+        (currentDriver) =>
+          currentDriver
+            ? {
+                ...currentDriver,
+
+                availabilityStatus:
+                  'AVAILABLE',
+              }
+            : currentDriver,
+      )
+
+      setCompletingTrip(
+        null,
+      )
+
+      setPostTripForm(
+        createEmptyPostTripForm(),
+      )
+
+      setPostTripError('')
+    } catch (error) {
+      console.error(error)
+
+      setPostTripError(
+        getApiErrorMessage(
+          error,
+          'Failed to save the post-trip information.',
+        ),
+      )
+    } finally {
+      setSavingPostTrip(
+        false,
+      )
     }
   }
 
   if (loading) {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center p-8">
+      <div className="flex min-h-[70vh] items-center justify-center bg-slate-50 p-8">
         <div className="text-center">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
-          <p className="mt-4 text-slate-500">
+          <p className="mt-4 text-sm text-slate-500">
             Loading your dashboard...
           </p>
         </div>
@@ -261,110 +604,157 @@ function DriverDashboard() {
 
   return (
     <>
-      <header className="border-b border-slate-200 bg-white px-8 py-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Driver Dashboard
-            </h1>
+      {/* =========================
+          HEADER
+      ========================== */}
 
-            <p className="mt-1 text-slate-500">
-              Welcome back,{' '}
-              <span className="font-semibold text-slate-700">
-                {driver?.user.name ??
-                  'Driver'}
-              </span>
-              .
-            </p>
-          </div>
+      <header className="flex min-h-[72px] items-center justify-between border-b border-slate-200 bg-white px-8">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-950">
+            Driver Dashboard
+          </h1>
 
-          <button
-            type="button"
-            onClick={() =>
-              void loadDashboard()
-            }
-            className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Refresh
-          </button>
+          <p className="mt-0.5 text-sm text-slate-500">
+            View your assignments,
+            vehicle and trip activity.
+          </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            void loadDashboard()
+          }
+          className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Refresh
+        </button>
       </header>
 
-      <main className="bg-slate-50 p-8">
+      <section className="mx-auto max-w-[1600px] p-8">
         {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
-        <section className="mb-6 grid gap-4 md:grid-cols-2">
-          <DriverInfoCard
-            label="Availability"
+        {/* =========================
+            HERO
+        ========================== */}
+
+        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 px-7 py-7 text-white shadow-sm">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+
+          <div className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
+
+          <div className="relative z-10 flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">
+                Driver operations
+              </p>
+
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                Welcome back,{' '}
+                {driver?.user.name ??
+                  'Driver'}
+              </h2>
+
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
+                Keep track of your
+                assigned vehicle, current
+                trip and upcoming
+                transport assignments.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <HeroStatusItem
+                label="Availability"
+                value={
+                  driver
+                    ?.availabilityStatus
+                    ? formatStatus(
+                        driver.availabilityStatus,
+                      )
+                    : 'Unavailable'
+                }
+              />
+
+              <HeroStatusItem
+                label="Assigned Vehicle"
+                value={
+                  driver
+                    ?.assignedVehicle
+                    ?.plateNumber ??
+                  'None'
+                }
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* =========================
+            STATS
+        ========================== */}
+
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Scheduled Trips"
             value={
-              driver?.availabilityStatus.replaceAll(
-                '_',
-                ' ',
-              ) ?? 'Unavailable'
+              scheduledTrips.length
             }
-            badge={
-              driver?.availabilityStatus
-            }
+            tone="blue"
           />
 
-          <DriverInfoCard
-            label="Assigned Vehicle"
+          <StatCard
+            label="In Progress"
             value={
-              driver?.assignedVehicle
-                ?.plateNumber ??
-              'No permanent vehicle assigned'
+              inProgressTrips.length
             }
-            description={
-              driver?.assignedVehicle
-                ? `${driver.assignedVehicle.vehicleType} • ${driver.assignedVehicle.currentMileage.toLocaleString()} km`
-                : undefined
+            tone="amber"
+          />
+
+          <StatCard
+            label="Completed Trips"
+            value={
+              completedTrips.length
             }
-          />
-        </section>
-
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <DashboardCard
-            title="Scheduled Trips"
-            value={scheduledTrips.length}
+            tone="green"
           />
 
-          <DashboardCard
-            title="In Progress"
-            value={inProgressTrips.length}
+          <StatCard
+            label="Cancelled Trips"
+            value={
+              cancelledTrips.length
+            }
+            tone="red"
           />
+        </div>
 
-          <DashboardCard
-            title="Completed Trips"
-            value={completedTrips.length}
-          />
+        {/* =========================
+            CURRENT TRIP
+        ========================== */}
 
-          <DashboardCard
-            title="Cancelled Trips"
-            value={cancelledTrips.length}
-          />
-        </section>
-
-        <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-6 grid gap-6 xl:grid-cols-[1.7fr_0.8fr]">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Current Trip
-                </h2>
-
-                <p className="text-sm text-slate-500">
-                  Your next scheduled or
-                  currently active trip.
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Current assignment
                 </p>
+
+                <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                  {activeTrip
+                    ? `TRIP-${activeTrip.id}`
+                    : 'No active trip'}
+                </h3>
               </div>
 
               {activeTrip && (
                 <TripStatusBadge
-                  status={activeTrip.status}
+                  status={
+                    activeTrip.status
+                  }
                 />
               )}
             </div>
@@ -373,114 +763,228 @@ function DriverDashboard() {
               <EmptyCurrentTrip />
             ) : (
               <CurrentTripCard
-                trip={activeTrip}
+                trip={
+                  activeTrip
+                }
               />
             )}
-          </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">
+            {activeTrip && (
+              <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+                <Link
+                  to="/driver/my-trips"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  View Details
+                </Link>
+
+                {activeTrip.status ===
+                  'SCHEDULED' && (
+                  <button
+                    type="button"
+                    disabled={
+                      actionTripId ===
+                      activeTrip.id
+                    }
+                    onClick={() =>
+                      void handleStartTrip(
+                        activeTrip,
+                      )
+                    }
+                    className="rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:opacity-50"
+                  >
+                    {actionTripId ===
+                    activeTrip.id
+                      ? 'Starting...'
+                      : 'Start Trip'}
+                  </button>
+                )}
+
+                {activeTrip.status ===
+                  'IN_PROGRESS' && (
+                  <button
+                    type="button"
+                    disabled={
+                      savingPostTrip
+                    }
+                    onClick={() =>
+                      handleCompleteTrip(
+                        activeTrip,
+                      )
+                    }
+                    className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    Complete Trip
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* QUICK ACTIONS */}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Shortcuts
+            </p>
+
+            <h3 className="mt-1 text-lg font-semibold text-slate-950">
               Quick Actions
-            </h2>
+            </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              Common driver actions.
+              Access common driver
+              activities.
             </p>
 
             <div className="mt-5 space-y-3">
-              {activeTrip?.status ===
-                'SCHEDULED' && (
-                <button
-                  type="button"
-                  disabled={
-                    actionTripId ===
-                    activeTrip.id
-                  }
-                  onClick={() =>
-                    void handleStartTrip(
-                      activeTrip,
-                    )
-                  }
-                  className="w-full rounded-xl bg-green-600 px-4 py-3 text-left font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {actionTripId ===
-                  activeTrip.id
-                    ? 'Starting Trip...'
-                    : 'Start Current Trip'}
-                </button>
-              )}
-
-              {activeTrip?.status ===
-                'IN_PROGRESS' && (
-                <button
-                  type="button"
-                  disabled={
-                    actionTripId ===
-                    activeTrip.id
-                  }
-                  onClick={() =>
-                    void handleCompleteTrip(
-                      activeTrip,
-                    )
-                  }
-                  className="w-full rounded-xl bg-green-600 px-4 py-3 text-left font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {actionTripId ===
-                  activeTrip.id
-                    ? 'Completing Trip...'
-                    : 'Complete Current Trip'}
-                </button>
-              )}
-
               <QuickActionLink
                 to="/driver/my-trips"
-                label="View All Trips"
+                label="My Trips"
+                description="View current and previous assignments"
               />
 
               <QuickActionLink
                 to="/driver/fuel-logs"
-                label="Add Fuel Log"
+                label="Fuel Records"
+                description="Record and review fuel activity"
               />
 
               <QuickActionLink
                 to="/driver/vehicle-issues"
-                label="Report Vehicle Issue"
+                label="Vehicle Issues"
+                description="Report a vehicle problem"
               />
 
               <QuickActionLink
                 to="/driver/my-vehicle"
-                label="View My Vehicle"
+                label="My Vehicle"
+                description="View assigned vehicle details"
               />
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
-        <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-6">
+        {/* =========================
+            DRIVER / VEHICLE
+        ========================== */}
+
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <InformationCard
+            title="Driver Status"
+          >
+            <InformationRow
+              label="Driver"
+              value={
+                driver?.user.name ??
+                'Unavailable'
+              }
+            />
+
+            <InformationRow
+              label="Availability"
+              value={
+                driver
+                  ?.availabilityStatus
+                  ? formatStatus(
+                      driver.availabilityStatus,
+                    )
+                  : 'Unavailable'
+              }
+              badge={
+                driver
+                  ?.availabilityStatus
+              }
+            />
+
+            <InformationRow
+              label="Licence"
+              value={
+                driver?.licenseNumber ??
+                'Unavailable'
+              }
+            />
+          </InformationCard>
+
+          <InformationCard
+            title="Assigned Vehicle"
+          >
+            <InformationRow
+              label="Plate Number"
+              value={
+                driver
+                  ?.assignedVehicle
+                  ?.plateNumber ??
+                'Not assigned'
+              }
+            />
+
+            <InformationRow
+              label="Vehicle"
+              value={
+                driver
+                  ?.assignedVehicle
+                  ?.vehicleType ??
+                'Unavailable'
+              }
+            />
+
+            <InformationRow
+              label="Vehicle Status"
+              value={
+                driver
+                  ?.assignedVehicle
+                  ?.status
+                  ? formatStatus(
+                      driver
+                        .assignedVehicle
+                        .status,
+                    )
+                  : 'Unavailable'
+              }
+            />
+          </InformationCard>
+        </div>
+
+        {/* =========================
+            UPCOMING TRIPS
+        ========================== */}
+
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Upcoming Trips
-              </h2>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Schedule
+              </p>
 
-              <p className="text-sm text-slate-500">
-                Your next scheduled
-                assignments.
+              <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                Upcoming Trips
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Your next assigned
+                transport requests.
               </p>
             </div>
 
             <Link
               to="/driver/my-trips"
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
             >
-              View all
+              View All
             </Link>
           </div>
 
-          {upcomingTrips.length === 0 ? (
-            <div className="p-10 text-center">
-              <p className="font-semibold text-slate-700">
+          {upcomingTrips.length ===
+          0 ? (
+            <div className="p-12 text-center">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-500">
+                TR
+              </div>
+
+              <p className="mt-4 font-semibold text-slate-700">
                 No additional upcoming
-                trips.
+                trips
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
@@ -490,8 +994,8 @@ function DriverDashboard() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+              <table className="w-full min-w-[1000px] text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-6 py-4">
                       Trip
@@ -524,36 +1028,51 @@ function DriverDashboard() {
                     (trip) => (
                       <tr
                         key={trip.id}
-                        className="border-b border-slate-100 last:border-none hover:bg-slate-50"
+                        className="border-b border-slate-100 transition last:border-b-0 hover:bg-slate-50/80"
                       >
                         <td className="px-6 py-4 font-semibold text-slate-900">
-                          TRIP-{trip.id}
+                          TRIP-
+                          {trip.id}
                         </td>
 
                         <td className="py-4 pr-6">
-                          <p className="font-medium text-slate-800">
+                          <p className="font-semibold text-slate-800">
                             {trip.request
                               ?.employee
                               ?.name ??
                               'Unknown'}
                           </p>
 
-                          <p className="text-xs text-slate-500">
+                          <p className="mt-1 max-w-[180px] truncate text-xs text-slate-500">
                             {trip.request
                               ?.employee
                               ?.email ??
-                              'No email'}
+                              'Unavailable'}
                           </p>
                         </td>
 
-                        <td className="py-4 pr-6">
-                          <p className="font-medium text-slate-800">
+                        <td className="max-w-[260px] py-4 pr-6">
+                          <p
+                            className="truncate font-medium text-slate-800"
+                            title={
+                              trip.request
+                                ?.pickupLocation ??
+                              ''
+                            }
+                          >
                             {trip.request
                               ?.pickupLocation ??
                               'Unavailable'}
                           </p>
 
-                          <p className="text-xs text-slate-500">
+                          <p
+                            className="mt-1 truncate text-xs text-slate-500"
+                            title={
+                              trip.request
+                                ?.destination ??
+                              ''
+                            }
+                          >
                             to{' '}
                             {trip.request
                               ?.destination ??
@@ -561,37 +1080,39 @@ function DriverDashboard() {
                           </p>
                         </td>
 
-                        <td className="py-4 pr-6">
-                          <p className="font-medium text-slate-800">
+                        <td className="whitespace-nowrap py-4 pr-6">
+                          <p className="font-medium text-slate-700">
                             {trip.request
                               ? formatDate(
-                                  trip.request
+                                  trip
+                                    .request
                                     .requestDate,
                                 )
-                              : '-'}
+                              : '—'}
                           </p>
 
-                          <p className="text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-slate-500">
                             {trip.request
                               ? formatTime(
-                                  trip.request
+                                  trip
+                                    .request
                                     .requestTime,
                                 )
-                              : '-'}
+                              : '—'}
                           </p>
                         </td>
 
                         <td className="py-4 pr-6">
-                          <p className="font-medium text-slate-800">
+                          <p className="font-semibold text-slate-800">
                             {trip.vehicle
                               ?.plateNumber ??
                               `Vehicle ${trip.vehicleId}`}
                           </p>
 
-                          <p className="text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-slate-500">
                             {trip.vehicle
                               ?.vehicleType ??
-                              ''}
+                              '—'}
                           </p>
                         </td>
 
@@ -610,10 +1131,365 @@ function DriverDashboard() {
             </div>
           )}
         </section>
-      </main>
+      </section>
+
+      {/* =========================
+          POST TRIP REPORT
+      ========================== */}
+
+      {completingTrip && (
+        <PostTripReportModal
+          trip={
+            completingTrip
+          }
+          formData={
+            postTripForm
+          }
+          saving={
+            savingPostTrip
+          }
+          error={
+            postTripError
+          }
+          onChange={(
+            field,
+            value,
+          ) => {
+            setPostTripForm(
+              (current) => ({
+                ...current,
+                [field]:
+                  value,
+              }),
+            )
+
+            if (
+              postTripError
+            ) {
+              setPostTripError(
+                '',
+              )
+            }
+          }}
+          onClose={
+            closePostTripModal
+          }
+          onSubmit={
+            handlePostTripSubmit
+          }
+        />
+      )}
     </>
   )
 }
+
+/* =========================================================
+   POST TRIP MODAL
+========================================================= */
+
+function PostTripReportModal({
+  trip,
+  formData,
+  saving,
+  error,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  trip: Trip
+  formData: PostTripForm
+  saving: boolean
+  error: string
+
+  onChange: (
+    field:
+      keyof PostTripForm,
+    value: string,
+  ) => void
+
+  onClose: () => void
+
+  onSubmit: (
+    event:
+      React.FormEvent<HTMLFormElement>,
+  ) => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-[2px]">
+      <div className="my-8 flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="shrink-0 bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-6 py-5 text-white">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-200">
+                Trip completion
+              </p>
+
+              <h2 className="mt-1 text-xl font-semibold">
+                Post-Trip Report
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-300">
+                TRIP-
+                {trip.id} •{' '}
+                {trip.vehicle
+                  ?.plateNumber ??
+                  `Vehicle ${trip.vehicleId}`}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                onClose
+              }
+              disabled={
+                saving
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xl text-slate-200 transition hover:bg-white/20 disabled:opacity-50"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <form
+          onSubmit={
+            onSubmit
+          }
+          className="overflow-y-auto"
+        >
+          <div className="space-y-6 p-6">
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+              Fuel and vehicle issue
+              information are optional.
+              Leave both sections blank
+              if nothing needs to be
+              recorded.
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {/* FUEL */}
+
+            <section className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
+                <h3 className="font-semibold text-slate-900">
+                  Fuel Record
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Optional — complete
+                  this only if fuel was
+                  added.
+                </p>
+              </div>
+
+              <div className="grid gap-4 p-5 sm:grid-cols-2">
+                <FormField
+                  label="Fuel Date"
+                >
+                  <input
+                    type="date"
+                    value={
+                      formData.fuelDate
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      onChange(
+                        'fuelDate',
+                        event.target
+                          .value,
+                      )
+                    }
+                    className={
+                      inputClass
+                    }
+                  />
+                </FormField>
+
+                <FormField
+                  label="Fuel Station"
+                >
+                  <input
+                    type="text"
+                    value={
+                      formData.fuelStation
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      onChange(
+                        'fuelStation',
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="e.g. PT, Shell"
+                    className={
+                      inputClass
+                    }
+                  />
+                </FormField>
+
+                <FormField
+                  label="Litres"
+                >
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    value={
+                      formData.liters
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      onChange(
+                        'liters',
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="e.g. 30"
+                    className={
+                      inputClass
+                    }
+                  />
+                </FormField>
+
+                <FormField
+                  label="Cost (MMK)"
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={
+                      formData.cost
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      onChange(
+                        'cost',
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="e.g. 75000"
+                    className={
+                      inputClass
+                    }
+                  />
+                </FormField>
+              </div>
+            </section>
+
+            {/* ISSUE */}
+
+            <section className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
+                <h3 className="font-semibold text-slate-900">
+                  Vehicle Issue
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Optional — report a
+                  problem noticed during
+                  the trip.
+                </p>
+              </div>
+
+              <div className="space-y-4 p-5">
+                <FormField
+                  label="Issue Title"
+                >
+                  <input
+                    type="text"
+                    value={
+                      formData.issueTitle
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      onChange(
+                        'issueTitle',
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="e.g. Brake noise"
+                    className={
+                      inputClass
+                    }
+                  />
+                </FormField>
+
+                <FormField
+                  label="Description"
+                >
+                  <textarea
+                    rows={4}
+                    value={
+                      formData.issueDescription
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      onChange(
+                        'issueDescription',
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="Describe what you noticed..."
+                    className={`${inputClass} resize-none`}
+                  />
+                </FormField>
+              </div>
+            </section>
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 bg-white px-6 py-5">
+            <button
+              type="button"
+              disabled={
+                saving
+              }
+              onClick={
+                onClose
+              }
+              className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Back
+            </button>
+
+            <button
+              type="submit"
+              disabled={
+                saving
+              }
+              className="rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-95 disabled:opacity-50"
+            >
+              {saving
+                ? 'Completing Trip...'
+                : 'Complete Trip'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* =========================================================
+   EXISTING UI COMPONENTS
+========================================================= */
 
 function CurrentTripCard({
   trip,
@@ -621,64 +1497,18 @@ function CurrentTripCard({
   trip: Trip
 }) {
   return (
-    <div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <TripDetail
-          label="Trip ID"
-          value={`TRIP-${trip.id}`}
-        />
-
+    <div className="p-6">
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <TripDetail
           label="Passenger"
           value={
-            trip.request?.employee
-              ?.name ?? 'Unknown'
+            trip.request
+              ?.employee?.name ??
+            'Unknown'
           }
           secondaryValue={
-            trip.request?.employee
-              ?.email
-          }
-        />
-
-        <TripDetail
-          label="Pickup Location"
-          value={
             trip.request
-              ?.pickupLocation ??
-            'Unavailable'
-          }
-        />
-
-        <TripDetail
-          label="Destination"
-          value={
-            trip.request
-              ?.destination ??
-            'Unavailable'
-          }
-        />
-
-        <TripDetail
-          label="Scheduled Date"
-          value={
-            trip.request
-              ? formatDate(
-                  trip.request
-                    .requestDate,
-                )
-              : 'Unavailable'
-          }
-        />
-
-        <TripDetail
-          label="Scheduled Time"
-          value={
-            trip.request
-              ? formatTime(
-                  trip.request
-                    .requestTime,
-                )
-              : 'Unavailable'
+              ?.employee?.email
           }
         />
 
@@ -690,12 +1520,67 @@ function CurrentTripCard({
             `Vehicle ${trip.vehicleId}`
           }
           secondaryValue={
-            trip.vehicle?.vehicleType
+            trip.vehicle
+              ?.vehicleType
           }
         />
 
         <TripDetail
-          label="Trip Started"
+          label="Schedule"
+          value={
+            trip.request
+              ? formatDate(
+                  trip.request
+                    .requestDate,
+                )
+              : 'Unavailable'
+          }
+          secondaryValue={
+            trip.request
+              ? formatTime(
+                  trip.request
+                    .requestTime,
+                )
+              : undefined
+          }
+        />
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <div className="grid gap-5 md:grid-cols-2">
+          <RouteItem
+            label="Pickup"
+            value={
+              trip.request
+                ?.pickupLocation ??
+              'Unavailable'
+            }
+            tone="blue"
+          />
+
+          <RouteItem
+            label="Destination"
+            value={
+              trip.request
+                ?.destination ??
+              'Unavailable'
+            }
+            tone="indigo"
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5 md:grid-cols-2">
+        <TripDetail
+          label="Purpose"
+          value={
+            trip.request?.purpose ??
+            'No purpose provided'
+          }
+        />
+
+        <TripDetail
+          label="Started"
           value={
             trip.startTime
               ? formatDateTime(
@@ -705,26 +1590,20 @@ function CurrentTripCard({
           }
         />
       </div>
-
-      <div className="mt-5 rounded-xl bg-slate-50 p-4">
-        <p className="text-sm font-semibold text-slate-500">
-          Purpose
-        </p>
-
-        <p className="mt-2 text-slate-800">
-          {trip.request?.purpose ??
-            'No purpose provided'}
-        </p>
-      </div>
     </div>
   )
 }
 
 function EmptyCurrentTrip() {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center">
-      <p className="font-semibold text-slate-700">
-        You do not have an active trip.
+    <div className="p-12 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-500">
+        TR
+      </div>
+
+      <p className="mt-4 font-semibold text-slate-700">
+        You do not have an active
+        trip
       </p>
 
       <p className="mt-1 text-sm text-slate-500">
@@ -735,66 +1614,158 @@ function EmptyCurrentTrip() {
   )
 }
 
-function DriverInfoCard({
+function QuickActionLink({
+  to,
+  label,
+  description,
+}: {
+  to: string
+  label: string
+  description: string
+}) {
+  return (
+    <Link
+      to={to}
+      className="group block rounded-xl border border-slate-200 bg-white px-4 py-3.5 transition hover:border-blue-200 hover:bg-blue-50"
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-700">
+            {label}
+          </p>
+
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            {description}
+          </p>
+        </div>
+
+        <span className="text-sm text-slate-300 group-hover:text-blue-500">
+          →
+        </span>
+      </div>
+    </Link>
+  )
+}
+
+function HeroStatusItem({
   label,
   value,
-  description,
-  badge,
 }: {
   label: string
   value: string
-  description?: string
-  badge?: DriverAvailabilityStatus
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
-      <p className="text-sm text-slate-500">
+    <div className="min-w-[150px] rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3">
+      <p className="text-xs text-slate-400">
         {label}
       </p>
 
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h2 className="text-xl font-bold text-slate-900">
-          {value}
-        </h2>
-
-        {badge && (
-          <DriverStatusBadge
-            status={badge}
-          />
-        )}
-      </div>
-
-      {description && (
-        <p className="mt-2 text-sm text-slate-500">
-          {description}
-        </p>
-      )}
+      <p className="mt-1 truncate text-sm font-semibold text-white">
+        {value}
+      </p>
     </div>
   )
 }
 
-function DashboardCard({
-  title,
+function StatCard({
+  label,
   value,
+  tone,
+}: {
+  label: string
+  value: number
+
+  tone:
+    | 'blue'
+    | 'amber'
+    | 'green'
+    | 'red'
+}) {
+  const styles = {
+    blue:
+      'bg-blue-50 text-blue-700',
+
+    amber:
+      'bg-amber-50 text-amber-700',
+
+    green:
+      'bg-emerald-50 text-emerald-700',
+
+    red:
+      'bg-red-50 text-red-700',
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-slate-500">
+            {label}
+          </p>
+
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+            {value}
+          </p>
+        </div>
+
+        <div
+          className={`flex h-9 min-w-9 items-center justify-center rounded-xl px-3 text-xs font-bold ${styles[tone]}`}
+        >
+          {value}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InformationCard({
+  title,
+  children,
 }: {
   title: string
-  value: number
+  children: React.ReactNode
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
-      <p className="text-sm text-slate-500">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="font-semibold text-slate-950">
         {title}
-      </p>
-
-      <h3 className="mt-2 text-3xl font-bold text-slate-900">
-        {value}
       </h3>
 
-      <Link
-        to="/driver/my-trips"
-        className="mt-3 inline-block text-sm font-semibold text-blue-600 hover:text-blue-700"
-      >
-      </Link>
+      <div className="mt-5 space-y-4">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function InformationRow({
+  label,
+  value,
+  badge,
+}: {
+  label: string
+  value: string
+  badge?: DriverAvailabilityStatus
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 last:border-b-0 last:pb-0">
+      <p className="text-sm text-slate-500">
+        {label}
+      </p>
+
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-semibold text-slate-800">
+          {value}
+        </p>
+
+        {badge && (
+          <DriverStatusBadge
+            status={
+              badge
+            }
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -809,12 +1780,12 @@ function TripDetail({
   secondaryValue?: string | null
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <p className="text-sm text-slate-500">
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </p>
 
-      <p className="mt-1 font-semibold text-slate-900">
+      <p className="mt-1 break-words text-sm font-semibold text-slate-800">
         {value}
       </p>
 
@@ -827,47 +1798,92 @@ function TripDetail({
   )
 }
 
-function QuickActionLink({
-  to,
+function RouteItem({
   label,
+  value,
+  tone,
 }: {
-  to: string
   label: string
+  value: string
+  tone: 'blue' | 'indigo'
 }) {
+  const style =
+    tone === 'blue'
+      ? 'bg-blue-500 ring-blue-100'
+      : 'bg-indigo-500 ring-indigo-100'
+
   return (
-    <Link
-      to={to}
-      className="block w-full rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
-    >
-      {label}
-    </Link>
+    <div className="flex items-start gap-3">
+      <span
+        className={`mt-1.5 h-3 w-3 shrink-0 rounded-full ring-4 ${style}`}
+      />
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {label}
+        </p>
+
+        <p className="mt-1 break-words text-sm font-semibold leading-6 text-slate-800">
+          {value}
+        </p>
+      </div>
+    </div>
   )
 }
+
+function FormField({
+  label,
+  children,
+}: {
+  label: string
+  children:
+    React.ReactNode
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+      </span>
+
+      {children}
+    </label>
+  )
+}
+
+const inputClass =
+  'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
 
 function TripStatusBadge({
   status,
 }: {
   status: TripStatus
 }) {
-  const styles: Record<
-    TripStatus,
-    string
-  > = {
+  const styles:
+    Record<
+      TripStatus,
+      string
+    > = {
     SCHEDULED:
-      'bg-blue-100 text-blue-700',
+      'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+
     IN_PROGRESS:
-      'bg-amber-100 text-amber-700',
+      'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+
     COMPLETED:
-      'bg-green-100 text-green-700',
+      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+
     CANCELLED:
-      'bg-red-100 text-red-700',
+      'bg-red-50 text-red-700 ring-1 ring-red-200',
   }
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}
+      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${styles[status]}`}
     >
-      {status.replaceAll('_', ' ')}
+      {status.replaceAll(
+        '_',
+        ' ',
+      )}
     </span>
   )
 }
@@ -875,27 +1891,35 @@ function TripStatusBadge({
 function DriverStatusBadge({
   status,
 }: {
-  status: DriverAvailabilityStatus
+  status:
+    DriverAvailabilityStatus
 }) {
-  const styles: Record<
-    DriverAvailabilityStatus,
-    string
-  > = {
+  const styles:
+    Record<
+      DriverAvailabilityStatus,
+      string
+    > = {
     AVAILABLE:
-      'bg-green-100 text-green-700',
+      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+
     ON_TRIP:
-      'bg-blue-100 text-blue-700',
+      'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+
     OFF_DUTY:
-      'bg-amber-100 text-amber-700',
+      'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+
     INACTIVE:
-      'bg-slate-200 text-slate-700',
+      'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
   }
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}
+      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${styles[status]}`}
     >
-      {status.replaceAll('_', ' ')}
+      {status.replaceAll(
+        '_',
+        ' ',
+      )}
     </span>
   )
 }
@@ -904,16 +1928,17 @@ function sortTrips(
   trips: Trip[],
 ): Trip[] {
   return [...trips].sort(
-    (firstTrip, secondTrip) => {
-      const firstDate =
-        getTripScheduleDate(firstTrip)
-
-      const secondDate =
-        getTripScheduleDate(secondTrip)
-
+    (
+      firstTrip,
+      secondTrip,
+    ) => {
       return (
-        firstDate.getTime() -
-        secondDate.getTime()
+        getTripScheduleDate(
+          firstTrip,
+        ).getTime() -
+        getTripScheduleDate(
+          secondTrip,
+        ).getTime()
       )
     },
   )
@@ -935,77 +1960,100 @@ function getTripScheduleDate(
   }
 
   const datePart =
-    requestDate.split('T')[0]
+    requestDate.split(
+      'T',
+    )[0]
 
   const timePart =
-    requestTime || '00:00'
+    requestTime ||
+    '00:00'
 
-  const combinedDate = new Date(
-    `${datePart}T${timePart}`,
+  const date =
+    new Date(
+      `${datePart}T${timePart}`,
+    )
+
+  return Number.isNaN(
+    date.getTime(),
   )
+    ? new Date(
+        trip.createdAt,
+      )
+    : date
+}
 
-  if (
-    Number.isNaN(
-      combinedDate.getTime(),
+function formatStatus(
+  value: string,
+): string {
+  return value
+    .replaceAll(
+      '_',
+      ' ',
     )
-  ) {
-    return new Date(
-      trip.createdAt,
+    .toLowerCase()
+    .replace(
+      /\b\w/g,
+      (character) =>
+        character.toUpperCase(),
     )
-  }
-
-  return combinedDate
 }
 
 function formatDate(
   value: string,
 ): string {
-  const date = new Date(value)
+  const date =
+    new Date(value)
 
-  if (
-    Number.isNaN(date.getTime())
-  ) {
-    return value
-  }
-
-  return date.toLocaleDateString(
-    undefined,
-    {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    },
+  return Number.isNaN(
+    date.getTime(),
   )
+    ? value
+    : date.toLocaleDateString(
+        undefined,
+        {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        },
+      )
 }
 
 function formatDateTime(
   value: string,
 ): string {
-  const date = new Date(value)
+  const date =
+    new Date(value)
 
-  if (
-    Number.isNaN(date.getTime())
-  ) {
-    return value
-  }
-
-  return date.toLocaleString()
+  return Number.isNaN(
+    date.getTime(),
+  )
+    ? value
+    : date.toLocaleString()
 }
 
 function formatTime(
   value: string,
 ): string {
-  const [hours, minutes] =
-    value.split(':').map(Number)
+  const [
+    hours,
+    minutes,
+  ] = value
+    .split(':')
+    .map(Number)
 
   if (
-    Number.isNaN(hours) ||
-    Number.isNaN(minutes)
+    Number.isNaN(
+      hours,
+    ) ||
+    Number.isNaN(
+      minutes,
+    )
   ) {
     return value
   }
 
-  const date = new Date()
+  const date =
+    new Date()
 
   date.setHours(
     hours,
@@ -1015,7 +2063,7 @@ function formatTime(
   )
 
   return date.toLocaleTimeString(
-    undefined,
+    [],
     {
       hour: '2-digit',
       minute: '2-digit',
@@ -1025,21 +2073,33 @@ function formatTime(
 
 function getApiErrorMessage(
   error: unknown,
-  fallbackMessage: string,
+  fallback: string,
 ): string {
-  if (!axios.isAxiosError(error)) {
-    return fallbackMessage
+  if (
+    !axios.isAxiosError(
+      error,
+    )
+  ) {
+    return fallback
   }
 
   const message =
-    error.response?.data?.message
+    error.response?.data
+      ?.message
 
-  if (Array.isArray(message)) {
-    return message.join(', ')
+  if (
+    Array.isArray(
+      message,
+    )
+  ) {
+    return message.join(
+      ', ',
+    )
   }
 
   if (
-    typeof message === 'string'
+    typeof message ===
+    'string'
   ) {
     return message
   }
@@ -1048,7 +2108,7 @@ function getApiErrorMessage(
     return 'Unable to connect to the server.'
   }
 
-  return fallbackMessage
+  return fallback
 }
 
 export default DriverDashboard

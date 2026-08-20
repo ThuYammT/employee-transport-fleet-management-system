@@ -13,10 +13,18 @@ import {
   updateVehicle,
 } from '../../services/vehicle.service'
 
+import {
+  getDrivers,
+} from '../../services/driver.service'
+
 import type {
   CreateVehicleData,
   Vehicle,
 } from '../../types/vehicle'
+
+import type {
+  Driver,
+} from '../../types/driver'
 
 const emptyForm: CreateVehicleData = {
   plateNumber: '',
@@ -25,9 +33,11 @@ const emptyForm: CreateVehicleData = {
 }
 
 function VehiclesView() {
-  const [vehicles, setVehicles] = useState<
-    Vehicle[]
-  >([])
+  const [vehicles, setVehicles] =
+    useState<Vehicle[]>([])
+
+  const [drivers, setDrivers] =
+    useState<Driver[]>([])
 
   const [searchTerm, setSearchTerm] =
     useState('')
@@ -36,7 +46,9 @@ function VehiclesView() {
     useState('ALL')
 
   const [formData, setFormData] =
-    useState<CreateVehicleData>(emptyForm)
+    useState<CreateVehicleData>(
+      emptyForm,
+    )
 
   const [
     editingVehicleId,
@@ -61,10 +73,10 @@ function VehiclesView() {
     useState('')
 
   useEffect(() => {
-    void fetchVehicles()
+    void fetchData()
   }, [])
 
-  async function fetchVehicles(
+  async function fetchData(
     silent = false,
   ) {
     try {
@@ -74,9 +86,16 @@ function VehiclesView() {
 
       setError('')
 
-      const data = await getVehicles()
+      const [
+        vehicleData,
+        driverData,
+      ] = await Promise.all([
+        getVehicles(),
+        getDrivers(),
+      ])
 
-      setVehicles(data)
+      setVehicles(vehicleData)
+      setDrivers(driverData)
     } catch (error) {
       console.error(error)
 
@@ -103,14 +122,19 @@ function VehiclesView() {
   function openEditModal(
     vehicle: Vehicle,
   ) {
-    setEditingVehicleId(vehicle.id)
+    setEditingVehicleId(
+      vehicle.id,
+    )
 
     setFormData({
       plateNumber:
         vehicle.plateNumber,
+
       vehicleType:
         vehicle.vehicleType,
-      capacity: vehicle.capacity,
+
+      capacity:
+        vehicle.capacity,
     })
 
     setError('')
@@ -118,17 +142,31 @@ function VehiclesView() {
   }
 
   function closeModal() {
-    if (saving) return
+    if (saving) {
+      return
+    }
 
     setIsModalOpen(false)
-    setEditingVehicleId(null)
-    setFormData(emptyForm)
+
+    setEditingVehicleId(
+      null,
+    )
+
+    setFormData(
+      emptyForm,
+    )
   }
 
   function resetModal() {
     setIsModalOpen(false)
-    setEditingVehicleId(null)
-    setFormData(emptyForm)
+
+    setEditingVehicleId(
+      null,
+    )
+
+    setFormData(
+      emptyForm,
+    )
   }
 
   async function handleSubmit(
@@ -146,11 +184,14 @@ function VehiclesView() {
           formData,
         )
       } else {
-        await createVehicle(formData)
+        await createVehicle(
+          formData,
+        )
       }
 
       resetModal()
-      await fetchVehicles(true)
+
+      await fetchData(true)
     } catch (error) {
       console.error(error)
 
@@ -168,24 +209,45 @@ function VehiclesView() {
   async function handleDelete(
     id: number,
   ) {
+    const assignedDriver =
+      drivers.find(
+        (driver) =>
+          driver.assignedVehicleId ===
+          id,
+      )
+
+    if (assignedDriver) {
+      setError(
+        `This vehicle is assigned to ${assignedDriver.user.name}. Unassign it from the driver first.`,
+      )
+
+      return
+    }
+
     const confirmed =
       window.confirm(
         'Delete this vehicle?\n\nRelated fuel logs, maintenance records, issue reports and trips will also be removed.',
       )
 
-    if (!confirmed) return
+    if (!confirmed) {
+      return
+    }
 
     try {
-      setDeletingVehicleId(id)
+      setDeletingVehicleId(
+        id,
+      )
+
       setError('')
 
       await deleteVehicle(id)
 
-      setVehicles((current) =>
-        current.filter(
-          (vehicle) =>
-            vehicle.id !== id,
-        ),
+      setVehicles(
+        (current) =>
+          current.filter(
+            (vehicle) =>
+              vehicle.id !== id,
+          ),
       )
     } catch (error) {
       console.error(error)
@@ -197,9 +259,35 @@ function VehiclesView() {
         ),
       )
     } finally {
-      setDeletingVehicleId(null)
+      setDeletingVehicleId(
+        null,
+      )
     }
   }
+
+  const assignedDriverByVehicleId =
+    useMemo(() => {
+      const map =
+        new Map<
+          number,
+          Driver
+        >()
+
+      drivers.forEach(
+        (driver) => {
+          if (
+            driver.assignedVehicleId
+          ) {
+            map.set(
+              driver.assignedVehicleId,
+              driver,
+            )
+          }
+        },
+      )
+
+      return map
+    }, [drivers])
 
   const filteredVehicles =
     useMemo(() => {
@@ -210,16 +298,37 @@ function VehiclesView() {
 
       return vehicles.filter(
         (vehicle) => {
+          const assignedDriver =
+            assignedDriverByVehicleId.get(
+              vehicle.id,
+            )
+
           const matchesSearch =
             vehicle.plateNumber
               .toLowerCase()
               .includes(keyword) ||
+
             vehicle.vehicleType
+              .toLowerCase()
+              .includes(keyword) ||
+
+            (
+              assignedDriver?.user
+                .name ?? ''
+            )
+              .toLowerCase()
+              .includes(keyword) ||
+
+            (
+              assignedDriver?.user
+                .email ?? ''
+            )
               .toLowerCase()
               .includes(keyword)
 
           const matchesStatus =
-            statusFilter === 'ALL' ||
+            statusFilter ===
+              'ALL' ||
             vehicle.status ===
               statusFilter
 
@@ -233,6 +342,7 @@ function VehiclesView() {
       vehicles,
       searchTerm,
       statusFilter,
+      assignedDriverByVehicleId,
     ])
 
   const vehicleCounts =
@@ -278,14 +388,17 @@ function VehiclesView() {
           </h1>
 
           <p className="mt-0.5 text-sm text-slate-500">
-            Manage fleet vehicles and
+            Manage fleet vehicles,
+            assignments and
             availability.
           </p>
         </div>
 
         <button
           type="button"
-          onClick={openAddModal}
+          onClick={
+            openAddModal
+          }
           className="rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
         >
           + Add Vehicle
@@ -293,10 +406,6 @@ function VehiclesView() {
       </header>
 
       <section className="mx-auto max-w-[1600px] p-8">
-        {/* =====================
-            PAGE INTRO
-        ====================== */}
-
         <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 px-7 py-6 text-white shadow-sm">
           <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
 
@@ -311,26 +420,27 @@ function VehiclesView() {
 
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
               Track vehicle status,
-              mileage, passenger capacity
-              and fleet availability.
+              passenger capacity,
+              assigned drivers and fleet
+              availability.
             </p>
           </div>
         </div>
 
-        {/* =====================
-            SUMMARY CARDS
-        ====================== */}
-
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MiniStatCard
             label="Available"
-            value={vehicleCounts.available}
+            value={
+              vehicleCounts.available
+            }
             tone="green"
           />
 
           <MiniStatCard
             label="In use"
-            value={vehicleCounts.inUse}
+            value={
+              vehicleCounts.inUse
+            }
             tone="blue"
           />
 
@@ -344,7 +454,9 @@ function VehiclesView() {
 
           <MiniStatCard
             label="Inactive"
-            value={vehicleCounts.inactive}
+            value={
+              vehicleCounts.inactive
+            }
             tone="slate"
           />
         </div>
@@ -354,10 +466,6 @@ function VehiclesView() {
             {error}
           </div>
         )}
-
-        {/* =====================
-            TABLE CARD
-        ====================== */}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 xl:flex-row xl:items-center xl:justify-between">
@@ -375,21 +483,31 @@ function VehiclesView() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <input
                 type="search"
-                value={searchTerm}
-                onChange={(event) =>
+                value={
+                  searchTerm
+                }
+                onChange={(
+                  event,
+                ) =>
                   setSearchTerm(
-                    event.target.value,
+                    event.target
+                      .value,
                   )
                 }
-                placeholder="Search vehicle..."
+                placeholder="Search vehicle or driver..."
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-72"
               />
 
               <select
-                value={statusFilter}
-                onChange={(event) =>
+                value={
+                  statusFilter
+                }
+                onChange={(
+                  event,
+                ) =>
                   setStatusFilter(
-                    event.target.value,
+                    event.target
+                      .value,
                   )
                 }
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-blue-500"
@@ -427,15 +545,14 @@ function VehiclesView() {
             filteredVehicles.length ===
               0 && (
               <div className="p-12 text-center">
-                
-
                 <p className="mt-4 font-semibold text-slate-700">
                   No vehicles found
                 </p>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Try changing your search
-                  or status filter.
+                  Try changing your
+                  search or status
+                  filter.
                 </p>
               </div>
             )}
@@ -456,7 +573,7 @@ function VehiclesView() {
                       </th>
 
                       <th className="py-4 pr-6">
-                        Mileage
+                        Assigned Driver
                       </th>
 
                       <th className="py-4 pr-6">
@@ -471,15 +588,20 @@ function VehiclesView() {
 
                   <tbody>
                     {filteredVehicles.map(
-                      (vehicle) => (
-                        <tr
-                          key={vehicle.id}
-                          className="border-b border-slate-100 transition last:border-b-0 hover:bg-slate-50/80"
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              
+                      (vehicle) => {
+                        const assignedDriver =
+                          assignedDriverByVehicleId.get(
+                            vehicle.id,
+                          )
 
+                        return (
+                          <tr
+                            key={
+                              vehicle.id
+                            }
+                            className="border-b border-slate-100 transition last:border-b-0 hover:bg-slate-50/80"
+                          >
+                            <td className="px-6 py-4">
                               <div>
                                 <p className="font-semibold text-slate-900">
                                   {
@@ -493,70 +615,90 @@ function VehiclesView() {
                                   }
                                 </p>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td className="py-4 pr-6">
-                            <span className="font-medium text-slate-700">
-                              {
-                                vehicle.capacity
-                              }
-                            </span>
-
-                            <span className="ml-1 text-slate-400">
-                              passengers
-                            </span>
-                          </td>
-
-                          <td className="py-4 pr-6 font-medium text-slate-700">
-                            {vehicle.currentMileage.toLocaleString()}{' '}
-                            km
-                          </td>
-
-                          <td className="py-4 pr-6">
-                            <StatusBadge
-                              status={
-                                vehicle.status
-                              }
-                            />
-                          </td>
-
-                          <td className="py-4 pr-6">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openEditModal(
-                                    vehicle,
-                                  )
+                            <td className="py-4 pr-6">
+                              <span className="font-medium text-slate-700">
+                                {
+                                  vehicle.capacity
                                 }
-                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                              >
-                                Edit
-                              </button>
+                              </span>
 
-                              <button
-                                type="button"
-                                disabled={
-                                  deletingVehicleId ===
+                              <span className="ml-1 text-slate-400">
+                                passengers
+                              </span>
+                            </td>
+
+                            <td className="py-4 pr-6">
+                              {assignedDriver ? (
+                                <div>
+                                  <p className="font-semibold text-slate-800">
+                                    {
+                                      assignedDriver
+                                        .user
+                                        .name
+                                    }
+                                  </p>
+
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {
+                                      assignedDriver
+                                        .licenseNumber
+                                    }
+                                  </p>
+                                </div>
+                              ) : (
+                                <span className="text-sm text-slate-400">
+                                  Unassigned
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="py-4 pr-6">
+                              <StatusBadge
+                                status={
+                                  vehicle.status
+                                }
+                              />
+                            </td>
+
+                            <td className="py-4 pr-6">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openEditModal(
+                                      vehicle,
+                                    )
+                                  }
+                                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={
+                                    deletingVehicleId ===
+                                    vehicle.id
+                                  }
+                                  onClick={() =>
+                                    void handleDelete(
+                                      vehicle.id,
+                                    )
+                                  }
+                                  className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {deletingVehicleId ===
                                   vehicle.id
-                                }
-                                onClick={() =>
-                                  void handleDelete(
-                                    vehicle.id,
-                                  )
-                                }
-                                className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {deletingVehicleId ===
-                                vehicle.id
-                                  ? 'Deleting...'
-                                  : 'Delete'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ),
+                                    ? 'Deleting...'
+                                    : 'Delete'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      },
                     )}
                   </tbody>
                 </table>
@@ -564,10 +706,6 @@ function VehiclesView() {
             )}
         </div>
       </section>
-
-      {/* =====================
-          MODAL
-      ====================== */}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]">
@@ -594,8 +732,12 @@ function VehiclesView() {
 
                 <button
                   type="button"
-                  onClick={closeModal}
-                  disabled={saving}
+                  onClick={
+                    closeModal
+                  }
+                  disabled={
+                    saving
+                  }
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xl text-slate-200 transition hover:bg-white/20"
                 >
                   ×
@@ -604,7 +746,9 @@ function VehiclesView() {
             </div>
 
             <form
-              onSubmit={handleSubmit}
+              onSubmit={
+                handleSubmit
+              }
               className="space-y-5 p-6"
             >
               {error && (
@@ -612,15 +756,19 @@ function VehiclesView() {
                   {error}
                 </div>
               )}
+
               <FormInput
                 label="Plate number"
                 value={
                   formData.plateNumber
                 }
-                onChange={(value) =>
+                onChange={(
+                  value,
+                ) =>
                   setFormData({
                     ...formData,
-                    plateNumber: value,
+                    plateNumber:
+                      value,
                   })
                 }
                 placeholder="e.g. 1A-1111"
@@ -631,10 +779,13 @@ function VehiclesView() {
                 value={
                   formData.vehicleType
                 }
-                onChange={(value) =>
+                onChange={(
+                  value,
+                ) =>
                   setFormData({
                     ...formData,
-                    vehicleType: value,
+                    vehicleType:
+                      value,
                   })
                 }
                 placeholder="e.g. Toyota Hiace"
@@ -651,13 +802,17 @@ function VehiclesView() {
                   value={
                     formData.capacity
                   }
-                  onChange={(event) =>
+                  onChange={(
+                    event,
+                  ) =>
                     setFormData({
                       ...formData,
-                      capacity: Number(
-                        event.target
-                          .value,
-                      ),
+                      capacity:
+                        Number(
+                          event
+                            .target
+                            .value,
+                        ),
                     })
                   }
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -668,8 +823,12 @@ function VehiclesView() {
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
                 <button
                   type="button"
-                  onClick={closeModal}
-                  disabled={saving}
+                  onClick={
+                    closeModal
+                  }
+                  disabled={
+                    saving
+                  }
                   className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   Cancel
@@ -677,7 +836,9 @@ function VehiclesView() {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={
+                    saving
+                  }
                   className="rounded-xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:opacity-50"
                 >
                   {saving
@@ -703,9 +864,11 @@ function FormInput({
 }: {
   label: string
   value: string
+
   onChange: (
     value: string,
   ) => void
+
   placeholder: string
 }) {
   return (
@@ -716,12 +879,16 @@ function FormInput({
 
       <input
         value={value}
-        onChange={(event) =>
+        onChange={(
+          event,
+        ) =>
           onChange(
             event.target.value,
           )
         }
-        placeholder={placeholder}
+        placeholder={
+          placeholder
+        }
         className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         required
       />
@@ -736,6 +903,7 @@ function MiniStatCard({
 }: {
   label: string
   value: number
+
   tone:
     | 'green'
     | 'blue'
@@ -745,10 +913,13 @@ function MiniStatCard({
   const styles = {
     green:
       'bg-emerald-50 text-emerald-700',
+
     blue:
       'bg-blue-50 text-blue-700',
+
     amber:
       'bg-amber-50 text-amber-700',
+
     slate:
       'bg-slate-100 text-slate-700',
   }
@@ -805,7 +976,10 @@ function StatusBadge({
         'bg-slate-100 text-slate-600'
       }`}
     >
-      {status.replaceAll('_', ' ')}
+      {status.replaceAll(
+        '_',
+        ' ',
+      )}
     </span>
   )
 }
@@ -814,22 +988,38 @@ function getApiErrorMessage(
   error: unknown,
   fallbackMessage: string,
 ): string {
-  if (!axios.isAxiosError(error)) {
+  if (
+    !axios.isAxiosError(
+      error,
+    )
+  ) {
     return fallbackMessage
   }
 
   const message =
-    error.response?.data?.message
+    error.response?.data
+      ?.message
 
-  if (Array.isArray(message)) {
-    return message.join(', ')
+  if (
+    Array.isArray(
+      message,
+    )
+  ) {
+    return message.join(
+      ', ',
+    )
   }
 
-  if (typeof message === 'string') {
+  if (
+    typeof message ===
+    'string'
+  ) {
     return message
   }
 
-  if (!error.response) {
+  if (
+    !error.response
+  ) {
     return 'Unable to connect to the server.'
   }
 

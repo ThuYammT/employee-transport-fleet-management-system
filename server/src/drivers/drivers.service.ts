@@ -236,6 +236,20 @@ export class DriversService {
     updateDriverDto: UpdateDriverDto,
   ) {
     const existingDriver = await this.findOne(id)
+    const vehicleAssignmentIsChanging =
+      updateDriverDto.assignedVehicleId !== undefined &&
+      updateDriverDto.assignedVehicleId !==
+        existingDriver.assignedVehicleId
+
+    if (
+      vehicleAssignmentIsChanging &&
+      existingDriver.availabilityStatus ===
+        DriverAvailabilityStatus.ON_TRIP
+    ) {
+      throw new BadRequestException(
+        'Vehicle assignment cannot be changed while the driver has an active trip',
+      )
+    }
 
     let normalizedEmail: string | undefined
 
